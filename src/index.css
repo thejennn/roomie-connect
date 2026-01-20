@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 263 70% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 263 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 239 84% 67%;
+
+    --radius: 1rem;
+
+    /* Custom semantic colors */
+    --match-high: 142 71% 45%;
+    --match-good: 217 91% 60%;
+    --match-average: 45 93% 47%;
+    --match-low: 0 84% 60%;
+
+    /* Glassmorphism */
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 0 0% 100% / 0.3;
+    --glass-blur: 20px;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(263 70% 50%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(239 84% 67% / 0.1) 0%, hsl(263 70% 50% / 0.1) 100%);
+    --gradient-mesh: radial-gradient(at 40% 20%, hsl(239 84% 67% / 0.3) 0px, transparent 50%),
+                     radial-gradient(at 80% 0%, hsl(263 70% 50% / 0.2) 0px, transparent 50%),
+                     radial-gradient(at 0% 50%, hsl(239 84% 67% / 0.2) 0px, transparent 50%),
+                     radial-gradient(at 80% 50%, hsl(263 70% 50% / 0.15) 0px, transparent 50%),
+                     radial-gradient(at 0% 100%, hsl(239 84% 67% / 0.1) 0px, transparent 50%);
+
+    /* Shadows */
+    --shadow-card: 0 4px 24px -4px hsl(239 84% 67% / 0.15);
+    --shadow-elevated: 0 8px 32px -8px hsl(239 84% 67% / 0.2);
+    --shadow-glow: 0 0 40px hsl(239 84% 67% / 0.3);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 263 70% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 263 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 239 84% 67%;
+
+    --glass-bg: 222 47% 11% / 0.7;
+    --glass-border: 0 0% 100% / 0.1;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-vietnam antialiased;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/30 shadow-card;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+
+  .gradient-bg {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-mesh {
+    background: var(--gradient-mesh);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .match-ring-high {
+    --tw-ring-color: hsl(var(--match-high));
+  }
+
+  .match-ring-good {
+    --tw-ring-color: hsl(var(--match-good));
+  }
+
+  .match-ring-average {
+    --tw-ring-color: hsl(var(--match-average));
+  }
+
+  .match-ring-low {
+    --tw-ring-color: hsl(var(--match-low));
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+}
