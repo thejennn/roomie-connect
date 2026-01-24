@@ -15,9 +15,12 @@ import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/auth/Login";
+import RegisterPage from "./pages/auth/Register";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import TenantAIChat from "./pages/tenant/AIChat";
-import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminRooms from "./pages/admin/Rooms";
+import AdminUsers from "./pages/admin/Users";
 import LandlordDashboard from "./pages/landlord/Dashboard";
 import CreatePost from "./pages/landlord/CreatePost";
 
@@ -50,6 +53,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth/login" element={<LoginPage />} />
+            <Route path="/auth/register" element={<RegisterPage />} />
 
             <Route path="/home" element={<Home />} />
             <Route path="/find-room" element={<FindRoom />} />
@@ -103,6 +107,22 @@ const App = () => (
               element={
                 <ProtectedRoute role="admin">
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/rooms"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminRooms />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminUsers />
                 </ProtectedRoute>
               }
             />

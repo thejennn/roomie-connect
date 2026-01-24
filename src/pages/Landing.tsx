@@ -30,12 +30,21 @@ const fadeUp = {
 export default function Landing() {
 	const navigate = useNavigate();
 	const [roleModalOpen, setRoleModalOpen] = useState(false);
-	const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord' | 'admin'>('tenant');
+	const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord'>('tenant');
+	const [modalMode, setModalMode] = useState<'login' | 'register'>('login');
 
-	const openLoginRoleFlow = () => setRoleModalOpen(true);
-	const continueToLogin = () => {
+	const openRoleModal = (mode: 'login' | 'register') => {
+		setModalMode(mode);
+		setRoleModalOpen(true);
+	};
+
+	const continueWithRole = () => {
 		setRoleModalOpen(false);
-		navigate(`/auth/login?role=${selectedRole}`);
+		if (modalMode === 'login') {
+			navigate(`/auth/login?role=${selectedRole}`);
+		} else {
+			navigate(`/auth/register?role=${selectedRole}`);
+		}
 	};
 
 	return (
@@ -67,11 +76,11 @@ export default function Landing() {
 						<span className="font-bold text-2xl gradient-text">KnockKnock</span>
 					</div>
 					<div className="flex items-center gap-3">
-						<Button variant="ghost" className="hidden sm:inline-flex" onClick={openLoginRoleFlow}>
+						<Button variant="ghost" className="hidden sm:inline-flex" onClick={() => openRoleModal('login')}>
 							Đăng nhập
 						</Button>
-						<Button asChild className="rounded-full shadow-card">
-							<Link to="/home">Bắt đầu</Link>
+						<Button className="rounded-full shadow-card" onClick={() => openRoleModal('register')}>
+							Đăng ký
 						</Button>
 					</div>
 				</nav>
@@ -240,9 +249,22 @@ export default function Landing() {
 				<div className="fixed inset-0 z-50 flex items-center justify-center">
 					<div className="absolute inset-0 bg-black/40" onClick={() => setRoleModalOpen(false)} />
 					<div className="relative z-10 w-full max-w-md p-6 bg-card rounded-2xl shadow-xl">
-						<h3 className="text-lg font-bold mb-4">Chọn vai trò để đăng nhập</h3>
+						<h3 className="text-lg font-bold mb-4">
+							{modalMode === 'register' ? 'Chọn vai trò để đăng ký' : 'Chọn vai trò để đăng nhập'}
+						</h3>
 
+						{/* Role options */}
 						<div className="grid grid-cols-1 gap-3 mb-6">
+							{modalMode === 'login' && (
+								<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'admin' ? 'border-primary bg-primary/5' : 'border-border'}`}>
+									<input type="radio" name="role" value="admin" checked={selectedRole === 'admin'} onChange={() => setSelectedRole('admin')} className="hidden" />
+									<Shield className="h-6 w-6 text-rose-500" />
+									<div>
+										<div className="font-medium">Admin</div>
+										<div className="text-sm text-muted-foreground">Quản lý hệ thống</div>
+									</div>
+								</label>
+							)}
 							<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'tenant' ? 'border-primary bg-primary/5' : 'border-border'}`}>
 								<input type="radio" name="role" value="tenant" checked={selectedRole === 'tenant'} onChange={() => setSelectedRole('tenant')} className="hidden" />
 								<Users className="h-6 w-6 text-primary" />
@@ -261,19 +283,11 @@ export default function Landing() {
 								</div>
 							</label>
 
-							<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'admin' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-								<input type="radio" name="role" value="admin" checked={selectedRole === 'admin'} onChange={() => setSelectedRole('admin')} className="hidden" />
-								<Shield className="h-6 w-6 text-rose-500" />
-								<div>
-									<div className="font-medium">Admin</div>
-									<div className="text-sm text-muted-foreground">Quản lý hệ thống</div>
-								</div>
-							</label>
 						</div>
 
 						<div className="flex items-center justify-end gap-3">
 							<Button variant="ghost" onClick={() => setRoleModalOpen(false)}>Huỷ</Button>
-							<Button onClick={continueToLogin}>Tiếp tục</Button>
+							<Button onClick={continueWithRole}>Tiếp tục</Button>
 						</div>
 					</div>
 				</div>

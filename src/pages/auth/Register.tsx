@@ -98,7 +98,7 @@ export default function Register() {
     e.preventDefault();
     setErrors({});
 
-    // Validate based on role
+    // Validate based on effective role
     const schema = role === 'landlord' ? landlordSchema : tenantSchema;
     const result = schema.safeParse(formData);
     
@@ -131,7 +131,14 @@ export default function Register() {
         toast.error('Đăng ký thất bại: ' + error.message);
       }
     } else {
-      toast.success('Đăng ký thành công! Chào mừng bạn đến với Nốc Nốc.');
+      toast.success('Đăng ký thành công! Chúc mừng bạn đã đăng ký.');
+      if (role === 'tenant') {
+        navigate('/home');
+      } else if (role === 'landlord') {
+        navigate('/landlord/dashboard');
+      } else {
+        navigate('/');
+      }
     }
   };
 
