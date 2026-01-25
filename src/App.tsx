@@ -22,6 +22,9 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminRooms from "./pages/admin/Rooms";
 import AdminUsers from "./pages/admin/Users";
 import LandlordDashboard from "./pages/landlord/Dashboard";
+import LandlordPosts from "./pages/landlord/Posts";
+import LandlordWallet from "./pages/landlord/Wallet";
+import LandlordProfile from "./pages/landlord/Profile";
 import CreatePost from "./pages/landlord/CreatePost";
 
 
@@ -84,6 +87,38 @@ const App = () => (
               element={
                 <ProtectedRoute role="landlord">
                   <LandlordDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/landlord/posts"
+              element={
+                <ProtectedRoute role="landlord">
+                  <LandlordPosts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/landlord/wallet"
+              element={
+                <ProtectedRoute role="landlord">
+                  <LandlordWallet />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/landlord/create-post"
+              element={
+                <ProtectedRoute role="landlord">
+                  <CreatePost />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/landlord/profile"
+              element={
+                <ProtectedRoute role="landlord">
+                  <LandlordProfile />
                 </ProtectedRoute>
               }
             />

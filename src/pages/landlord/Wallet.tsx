@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Wallet, 
-  Plus, 
-  ArrowUpRight, 
+import {
+  Wallet,
+  Plus,
+  ArrowUpRight,
   ArrowDownLeft,
   CreditCard,
   QrCode,
   Building2,
-  X,
   CheckCircle2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,38 +22,129 @@ import LandlordLayout from '@/components/layouts/LandlordLayout';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 
-const mockTransactions = [
-  { id: '1', type: 'topup', amount: 1000000, description: 'Nạp tiền qua VietQR', date: new Date('2025-01-15'), status: 'success' },
-  { id: '2', type: 'post_fee', amount: -50000, description: 'Phí đăng tin #123', date: new Date('2025-01-14'), status: 'success' },
-  { id: '3', type: 'topup', amount: 2000000, description: 'Nạp tiền qua chuyển khoản', date: new Date('2025-01-12'), status: 'success' },
-  { id: '4', type: 'post_fee', amount: -50000, description: 'Phí đăng tin #122', date: new Date('2025-01-10'), status: 'success' },
-  { id: '5', type: 'subscription', amount: -500000, description: 'Gói tháng Premium', date: new Date('2025-01-05'), status: 'success' },
-];
-
 const topUpAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
 
+interface Transaction {
+  id: string;
+  amount: number;
+  type: string;
+  description: string | null;
+  created_at: string;
+}
+
 export default function LandlordWallet() {
-  const [balance, setBalance] = useState(5000000);
+  const { user } = useAuth();
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState<number>(0);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleTopUp = () => {
+  useEffect(() => {
+    if (user) {
+      fetchWalletData();
+    }
+  }, [user]);
+
+  const fetchWalletData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch wallet balance
+      const { data: walletData, error: walletError } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (walletError) {
+        // Create wallet if doesn't exist
+        const { data: newWallet, error: createError } = await supabase
+          .from('wallets')
+          .insert({ user_id: user?.id, balance: 0 })
+          .select()
+          .single();
+
+        if (!createError && newWallet) {
+          setBalance(newWallet.balance);
+        }
+      } else if (walletData) {
+        setBalance(walletData.balance);
+      }
+
+      // Fetch transactions
+      const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (!txError && txData) {
+        setTransactions(txData);
+      }
+    } catch (error) {
+      console.error('Error fetching wallet data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTopUp = async () => {
     if (topUpAmount < 10000) {
       toast.error('Số tiền tối thiểu là 10,000đ');
       return;
     }
-    
-    // Simulate payment
+
     setShowSuccess(true);
-    setTimeout(() => {
-      setBalance((prev) => prev + topUpAmount);
+
+    try {
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Update wallet balance
+      const { error: updateError } = await supabase
+        .from('wallets')
+        .update({ balance: balance + topUpAmount })
+        .eq('user_id', user?.id);
+
+      if (updateError) throw updateError;
+
+      // Create transaction record
+      const { error: txError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user?.id,
+          amount: topUpAmount,
+          type: 'topup',
+          description: 'Nạp tiền qua VietQR'
+        });
+
+      if (txError) throw txError;
+
+      setBalance(prev => prev + topUpAmount);
       setShowSuccess(false);
       setShowTopUp(false);
       setTopUpAmount(0);
       toast.success(`Nạp thành công ${formatCurrency(topUpAmount)}`);
-    }, 2000);
+      fetchWalletData();
+    } catch (error) {
+      console.error('Error topping up:', error);
+      toast.error('Có lỗi xảy ra khi nạp tiền');
+      setShowSuccess(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <LandlordLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </LandlordLayout>
+    );
+  }
 
   return (
     <LandlordLayout>
@@ -136,31 +228,37 @@ export default function LandlordWallet() {
             <CardTitle>Lịch sử giao dịch</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockTransactions.map((tx) => (
-                <div 
-                  key={tx.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      tx.amount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      {tx.amount > 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    </div>
-                    <div>
-                      <div className="font-medium">{tx.description}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {tx.date.toLocaleDateString('vi-VN')}
+            {transactions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Chưa có giao dịch nào</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {transactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
+                        tx.amount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        {tx.amount > 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <div className="font-medium">{tx.description || 'Giao dịch'}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(tx.created_at).toLocaleDateString('vi-VN')}
+                        </div>
                       </div>
                     </div>
+                    <div className={`font-semibold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
+                    </div>
                   </div>
-                  <div className={`font-semibold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

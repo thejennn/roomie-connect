@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  MapPin, 
+import {
+  MapPin,
   Home,
   DollarSign,
   Zap,
@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Upload,
-  X,
   AlertCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -24,6 +23,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import LandlordLayout from '@/components/layouts/LandlordLayout';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const steps = [
   { id: 1, title: 'Vị trí', icon: MapPin },
@@ -61,8 +62,32 @@ const POST_FEE = 50000;
 
 export default function CreatePost() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
-  const [walletBalance] = useState(5000000);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      fetchWalletBalance();
+    }
+  }, [user]);
+
+  const fetchWalletBalance = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!error && data) {
+        setWalletBalance(data.balance);
+      }
+    } catch (error) {
+      console.error('Error fetching wallet balance:', error);
+    }
+  };
   
   const [formData, setFormData] = useState({
     // Step 1
@@ -120,14 +145,86 @@ export default function CreatePost() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (walletBalance < POST_FEE) {
       toast.error('Số dư không đủ! Vui lòng nạp thêm tiền vào ví.');
       return;
     }
 
-    toast.success('Đăng tin thành công! Tin của bạn đang chờ duyệt.');
-    navigate('/landlord/posts');
+    setLoading(true);
+
+    try {
+      // Create room post
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .insert({
+          landlord_id: user?.id,
+          title: formData.title,
+          description: formData.description,
+          price: Number(formData.price),
+          deposit: formData.deposit ? Number(formData.deposit) : null,
+          area: formData.area ? Number(formData.area) : null,
+          capacity: Number(formData.capacity),
+          district: formData.district,
+          address: formData.address,
+          electricity_price: formData.electricity_price ? Number(formData.electricity_price) : null,
+          water_price: formData.water_price ? Number(formData.water_price) : null,
+          internet_price: formData.internet_price ? Number(formData.internet_price) : null,
+          cleaning_fee: formData.cleaning_fee ? Number(formData.cleaning_fee) : null,
+          parking_fee: formData.parking_fee ? Number(formData.parking_fee) : null,
+          has_elevator: formData.amenities.includes('elevator'),
+          has_fire_safety: formData.amenities.includes('fire_safety'),
+          has_shared_washing: formData.amenities.includes('shared_washing'),
+          has_private_washing: formData.amenities.includes('private_washing'),
+          has_parking: formData.amenities.includes('parking'),
+          has_security_camera: formData.amenities.includes('camera'),
+          has_pet_friendly: formData.amenities.includes('pet_friendly'),
+          has_shared_owner: formData.amenities.includes('shared_owner'),
+          has_drying_area: formData.amenities.includes('drying_area'),
+          has_bed: formData.furniture.includes('bed'),
+          has_wardrobe: formData.furniture.includes('wardrobe'),
+          has_air_conditioner: formData.furniture.includes('air_conditioner'),
+          has_water_heater: formData.furniture.includes('water_heater'),
+          has_kitchen: formData.furniture.includes('kitchen'),
+          has_fridge: formData.furniture.includes('fridge'),
+          is_fully_furnished: formData.furniture.includes('fully_furnished'),
+          status: 'pending',
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        })
+        .select()
+        .single();
+
+      if (roomError) throw roomError;
+
+      // Deduct post fee from wallet
+      const { error: walletError } = await supabase
+        .from('wallets')
+        .update({ balance: walletBalance - POST_FEE })
+        .eq('user_id', user?.id);
+
+      if (walletError) throw walletError;
+
+      // Create transaction record
+      const { error: txError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user?.id,
+          amount: -POST_FEE,
+          type: 'post_fee',
+          description: `Phí đăng tin #${roomData.id.slice(0, 8)}`,
+          reference_id: roomData.id,
+        });
+
+      if (txError) throw txError;
+
+      toast.success('Đăng tin thành công! Tin của bạn đang chờ duyệt.');
+      navigate('/landlord/posts');
+    } catch (error) {
+      console.error('Error creating post:', error);
+      toast.error('Không thể đăng tin. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -470,10 +567,10 @@ export default function CreatePost() {
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={walletBalance < POST_FEE}
+              disabled={walletBalance < POST_FEE || loading}
               className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
             >
-              Thanh toán & Đăng tin
+              {loading ? 'Đang xử lý...' : 'Thanh toán & Đăng tin'}
             </Button>
           )}
         </div>
