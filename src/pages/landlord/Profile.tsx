@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   User,
   Mail,
@@ -28,6 +28,8 @@ export default function LandlordProfile() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState({
     full_name: "",
     email: "",
@@ -83,6 +85,52 @@ export default function LandlordProfile() {
       toast.error("Không thể tải thông tin hồ sơ");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAvatarUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Kích thước ảnh không được vượt quá 2MB");
+      return;
+    }
+
+    if (!file.type.match(/^image\//)) {
+      toast.error("Vui lòng chọn file ảnh hợp lệ");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user?.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+      setProfile({ ...profile, avatar_url: data.publicUrl });
+      toast.success("Tải ảnh lên thành công");
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      toast.error("Không thể tải ảnh lên. Vui lòng thử lại sau.");
+    } finally {
+      setUploading(false);
+      // Reset input value to allow selecting same file again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -146,9 +194,22 @@ export default function LandlordProfile() {
                     {profile.full_name?.charAt(0)?.toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>
-                <Button variant="outline" size="sm" className="w-full">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
                   <Camera className="h-4 w-4 mr-2" />
-                  Tải ảnh lên
+                  {uploading ? "Đang tải..." : "Tải ảnh lên"}
                 </Button>
                 <p className="text-sm text-muted-foreground text-center">
                   JPG, PNG hoặc GIF. Tối đa 2MB.
