@@ -17,7 +17,7 @@ export default function FindRoommateChoice() {
             <div className="flex items-center gap-4 mb-4">
               <Sparkles className="h-8 w-8 text-primary" />
               <div>
-                <h2 className="font-semibold">Trả lời bộ câu hỏi</h2>
+                <h2 className="font-semibold">Bộ câu hỏi trắc nghiệm tính cách</h2>
                 <p className="text-sm text-muted-foreground">Sử dụng bộ câu hỏi được biên soạn để tìm roommate phù hợp.</p>
               </div>
             </div>
