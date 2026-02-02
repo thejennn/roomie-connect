@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wallet,
@@ -57,37 +57,17 @@ export default function LandlordWallet() {
       setLoading(true);
 
       // Fetch wallet balance
-      const { data: walletData, error: walletError } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("user_id", user?.id)
-        .single();
+      const { data: walletData, error: walletError } = await apiClient.getWallet();
 
-      if (walletError) {
-        // Create wallet if doesn't exist
-        const { data: newWallet, error: createError } = await supabase
-          .from("wallets")
-          .insert({ user_id: user?.id, balance: 0 })
-          .select()
-          .single();
-
-        if (!createError && newWallet) {
-          setBalance(newWallet.balance);
-        }
-      } else if (walletData) {
-        setBalance(walletData.balance);
+      if (!walletError && walletData?.wallet) {
+        setBalance(walletData.wallet.balance);
       }
 
       // Fetch transactions
-      const { data: txData, error: txError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user?.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
+      const { data: txData, error: txError } = await apiClient.getTransactions();
 
-      if (!txError && txData) {
-        setTransactions(txData);
+      if (!txError && txData?.transactions) {
+        setTransactions(txData.transactions);
       }
     } catch (error) {
       console.error("Error fetching wallet data:", error);
@@ -108,25 +88,15 @@ export default function LandlordWallet() {
       // Simulate payment processing
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Update wallet balance
-      const { error: updateError } = await supabase
-        .from("wallets")
-        .update({ balance: balance + topUpAmount })
-        .eq("user_id", user?.id);
+      // Call backend API to top up wallet
+      const { data, error } = await apiClient.topUpWallet(topUpAmount, "VietQR");
 
-      if (updateError) throw updateError;
+      if (error) throw new Error(error);
 
-      // Create transaction record
-      const { error: txError } = await supabase.from("transactions").insert({
-        user_id: user?.id,
-        amount: topUpAmount,
-        type: "topup",
-        description: "Nạp tiền qua VietQR",
-      });
+      if (data?.wallet) {
+        setBalance(data.wallet.balance);
+      }
 
-      if (txError) throw txError;
-
-      setBalance((prev) => prev + topUpAmount);
       setShowSuccess(false);
       setShowTopUp(false);
       setTopUpAmount(0);

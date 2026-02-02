@@ -1,0 +1,209 @@
+// API client for Node.js backend with MongoDB
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+interface ApiResponse<T = any> {
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+class ApiClient {
+  private token: string | null = null;
+
+  constructor() {
+    // Load token from localStorage on initialization
+    this.token = localStorage.getItem('auth_token');
+  }
+
+  setToken(token: string | null) {
+    this.token = token;
+    if (token) {
+      localStorage.setItem('auth_token', token);
+    } else {
+      localStorage.removeItem('auth_token');
+    }
+  }
+
+  getToken() {
+    return this.token;
+  }
+
+  private async request<T = any>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          error: data.error || `HTTP ${response.status}: ${response.statusText}`,
+          data: null,
+        };
+      }
+
+      return { data, error: undefined };
+    } catch (error) {
+      console.error('API request error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Network error',
+        data: null,
+      };
+    }
+  }
+
+  // Auth endpoints
+  async register(email: string, password: string, fullName: string, role?: string) {
+    return this.request<{ token: string; user: any }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, fullName, role }),
+    });
+  }
+
+  async login(email: string, password: string) {
+    return this.request<{ token: string; user: any }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async getProfile() {
+    return this.request<{ user: any }>('/auth/profile');
+  }
+
+  async updateProfile(updates: Record<string, any>) {
+    return this.request<{ user: any }>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  // Rooms endpoints
+  async getRooms(params?: {
+    district?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const query = queryParams.toString();
+    return this.request<{ rooms: any[]; pagination: any }>(
+      `/rooms${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getRoom(id: string) {
+    return this.request<{ room: any }>(`/rooms/${id}`);
+  }
+
+  async getMyRooms() {
+    return this.request<{ rooms: any[] }>('/rooms/my/listings');
+  }
+
+  async createRoom(roomData: any) {
+    return this.request<{ room: any }>('/rooms', {
+      method: 'POST',
+      body: JSON.stringify(roomData),
+    });
+  }
+
+  async updateRoom(id: string, roomData: any) {
+    return this.request<{ room: any }>(`/rooms/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(roomData),
+    });
+  }
+
+  async deleteRoom(id: string) {
+    return this.request<{ message: string }>(`/rooms/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Wallet endpoints
+  async getWallet() {
+    return this.request<{ wallet: any }>('/wallet');
+  }
+
+  async topUpWallet(amount: number, method: string) {
+    return this.request<{ wallet: any }>('/wallet/topup', {
+      method: 'POST',
+      body: JSON.stringify({ amount, method }),
+    });
+  }
+
+  async getTransactions() {
+    return this.request<{ transactions: any[] }>('/wallet/transactions');
+  }
+
+  // Notifications endpoints
+  async getNotifications() {
+    return this.request<{ notifications: any[] }>('/notifications');
+  }
+
+  async markNotificationRead(id: string) {
+    return this.request(`/notifications/${id}/read`, {
+      method: 'PATCH',
+    });
+  }
+
+  // Chat endpoints
+  async getChats() {
+    return this.request<{ chats: any[] }>('/chat');
+  }
+
+  async getChatMessages(chatId: string) {
+    return this.request<{ messages: any[] }>(`/chat/${chatId}/messages`);
+  }
+
+  async sendMessage(chatId: string, content: string) {
+    return this.request<{ message: any }>(`/chat/${chatId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  // Roommate profiles
+  async getRoommateProfiles() {
+    return this.request<{ profiles: any[] }>('/roommates');
+  }
+
+  async createRoommateProfile(profileData: any) {
+    return this.request<{ profile: any }>('/roommates', {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async updateRoommateProfile(id: string, profileData: any) {
+    return this.request<{ profile: any }>(`/roommates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+}
+
+export const apiClient = new ApiClient();

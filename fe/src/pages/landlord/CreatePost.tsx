@@ -36,7 +36,7 @@ import LandlordLayout from "@/components/layouts/LandlordLayout";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 const steps = [
   { id: 1, title: "Vị trí", icon: MapPin },
@@ -93,14 +93,10 @@ export default function CreatePost() {
 
   const fetchWalletBalance = async () => {
     try {
-      const { data, error } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("user_id", user?.id)
-        .single();
+      const { data, error } = await apiClient.getWallet();
 
-      if (!error && data) {
-        setWalletBalance(data.balance);
+      if (!error && data?.wallet) {
+        setWalletBalance(data.wallet.balance);
       }
     } catch (error) {
       console.error("Error fetching wallet balance:", error);
@@ -172,78 +168,55 @@ export default function CreatePost() {
     setLoading(true);
 
     try {
-      // Create room post
-      const { data: roomData, error: roomError } = await supabase
-        .from("rooms")
-        .insert({
-          landlord_id: user?.id,
-          title: formData.title,
-          description: formData.description,
-          price: Number(formData.price),
-          deposit: formData.deposit ? Number(formData.deposit) : null,
-          area: formData.area ? Number(formData.area) : null,
-          capacity: Number(formData.capacity),
-          district: formData.district,
-          address: formData.address,
-          electricity_price: formData.electricity_price
-            ? Number(formData.electricity_price)
-            : null,
-          water_price: formData.water_price
-            ? Number(formData.water_price)
-            : null,
-          internet_price: formData.internet_price
-            ? Number(formData.internet_price)
-            : null,
-          cleaning_fee: formData.cleaning_fee
-            ? Number(formData.cleaning_fee)
-            : null,
-          parking_fee: formData.parking_fee
-            ? Number(formData.parking_fee)
-            : null,
-          has_elevator: formData.amenities.includes("elevator"),
-          has_fire_safety: formData.amenities.includes("fire_safety"),
-          has_shared_washing: formData.amenities.includes("shared_washing"),
-          has_private_washing: formData.amenities.includes("private_washing"),
-          has_parking: formData.amenities.includes("parking"),
-          has_security_camera: formData.amenities.includes("camera"),
-          has_pet_friendly: formData.amenities.includes("pet_friendly"),
-          has_shared_owner: formData.amenities.includes("shared_owner"),
-          has_drying_area: formData.amenities.includes("drying_area"),
-          has_bed: formData.furniture.includes("bed"),
-          has_wardrobe: formData.furniture.includes("wardrobe"),
-          has_air_conditioner: formData.furniture.includes("air_conditioner"),
-          has_water_heater: formData.furniture.includes("water_heater"),
-          has_kitchen: formData.furniture.includes("kitchen"),
-          has_fridge: formData.furniture.includes("fridge"),
-          is_fully_furnished: formData.furniture.includes("fully_furnished"),
-          status: "pending",
-          expires_at: new Date(
-            Date.now() + 30 * 24 * 60 * 60 * 1000,
-          ).toISOString(), // 30 days from now
-        })
-        .select()
-        .single();
+      // Create room post using API
+      const roomPayload = {
+        title: formData.title,
+        description: formData.description,
+        price: Number(formData.price),
+        deposit: formData.deposit ? Number(formData.deposit) : null,
+        area: formData.area ? Number(formData.area) : null,
+        capacity: Number(formData.capacity),
+        district: formData.district,
+        address: formData.address,
+        electricity_price: formData.electricity_price
+          ? Number(formData.electricity_price)
+          : null,
+        water_price: formData.water_price
+          ? Number(formData.water_price)
+          : null,
+        internet_price: formData.internet_price
+          ? Number(formData.internet_price)
+          : null,
+        cleaning_fee: formData.cleaning_fee
+          ? Number(formData.cleaning_fee)
+          : null,
+        parking_fee: formData.parking_fee
+          ? Number(formData.parking_fee)
+          : null,
+        has_elevator: formData.amenities.includes("elevator"),
+        has_fire_safety: formData.amenities.includes("fire_safety"),
+        has_shared_washing: formData.amenities.includes("shared_washing"),
+        has_private_washing: formData.amenities.includes("private_washing"),
+        has_parking: formData.amenities.includes("parking"),
+        has_security_camera: formData.amenities.includes("camera"),
+        has_pet_friendly: formData.amenities.includes("pet_friendly"),
+        has_shared_owner: formData.amenities.includes("shared_owner"),
+        has_drying_area: formData.amenities.includes("drying_area"),
+        has_bed: formData.furniture.includes("bed"),
+        has_wardrobe: formData.furniture.includes("wardrobe"),
+        has_air_conditioner: formData.furniture.includes("air_conditioner"),
+        has_water_heater: formData.furniture.includes("water_heater"),
+        has_kitchen: formData.furniture.includes("kitchen"),
+        has_fridge: formData.furniture.includes("fridge"),
+        is_fully_furnished: formData.furniture.includes("fully_furnished"),
+        images: formData.images,
+      };
 
-      if (roomError) throw roomError;
+      const { data: roomData, error: roomError } = await apiClient.createRoom(roomPayload);
 
-      // Deduct post fee from wallet
-      const { error: walletError } = await supabase
-        .from("wallets")
-        .update({ balance: walletBalance - POST_FEE })
-        .eq("user_id", user?.id);
-
-      if (walletError) throw walletError;
-
-      // Create transaction record
-      const { error: txError } = await supabase.from("transactions").insert({
-        user_id: user?.id,
-        amount: -POST_FEE,
-        type: "post_fee",
-        description: `Phí đăng tin #${roomData.id.slice(0, 8)}`,
-        reference_id: roomData.id,
-      });
-
-      if (txError) throw txError;
+      if (roomError) {
+        throw new Error(roomError);
+      }
 
       toast.success("Đăng tin thành công! Tin của bạn đang chờ duyệt.");
       navigate("/landlord/posts");

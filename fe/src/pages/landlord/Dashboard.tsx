@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import LandlordLayout from "@/components/layouts/LandlordLayout";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 
 interface Room {
@@ -56,30 +56,22 @@ export default function LandlordDashboard() {
       setLoading(true);
 
       // Fetch wallet balance
-      const { data: walletData, error: walletError } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("user_id", user?.id)
-        .single();
+      const { data: walletData, error: walletError } = await apiClient.getWallet();
 
-      if (!walletError && walletData) {
-        setWalletBalance(walletData.balance);
+      if (!walletError && walletData?.wallet) {
+        setWalletBalance(walletData.wallet.balance);
       }
 
       // Fetch rooms/posts
-      const { data: roomsData, error: roomsError } = await supabase
-        .from("rooms")
-        .select("*")
-        .eq("landlord_id", user?.id)
-        .order("created_at", { ascending: false });
+      const { data: roomsData, error: roomsError } = await apiClient.getMyRooms();
 
-      if (!roomsError && roomsData) {
-        setRecentPosts(roomsData.slice(0, 4));
+      if (!roomsError && roomsData?.rooms) {
+        setRecentPosts(roomsData.rooms.slice(0, 4));
 
         setStats({
-          totalPosts: roomsData.length,
-          activePosts: roomsData.filter((r) => r.status === "active").length,
-          pendingPosts: roomsData.filter((r) => r.status === "pending").length,
+          totalPosts: roomsData.rooms.length,
+          activePosts: roomsData.rooms.filter((r) => r.status === "active").length,
+          pendingPosts: roomsData.rooms.filter((r) => r.status === "pending").length,
           totalViews: Math.floor(Math.random() * 10000) + 5000, // Mock for now
         });
       }
