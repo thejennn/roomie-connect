@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import LandlordLayout from "@/components/layouts/LandlordLayout";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 
 export default function LandlordProfile() {
   const { user } = useAuth();
@@ -49,25 +49,21 @@ export default function LandlordProfile() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user?.id)
-        .single();
+      const { data, error } = await apiClient.getProfile();
 
-      if (error && error.code !== "PGRST116") {
-        throw error;
+      if (error) {
+        throw new Error(error);
       }
 
-      if (data) {
+      if (data?.user) {
         setProfile({
-          full_name: data.full_name || "",
-          email: data.email || user?.email || "",
-          phone: data.phone || "",
-          zalo: data.workplace || "", // Sử dụng workplace column cho zalo
-          bank_name: data.bank_name || "",
-          bank_account: data.bank_account || "",
-          avatar_url: data.avatar_url || "",
+          full_name: data.user.fullName || "",
+          email: data.user.email || "",
+          phone: data.user.phone || "",
+          zalo: data.user.workplace || "",
+          bank_name: data.user.bank_name || "",
+          bank_account: data.user.bank_account || "",
+          avatar_url: data.user.avatarUrl || "",
         });
       } else {
         setProfile({
@@ -106,27 +102,22 @@ export default function LandlordProfile() {
 
     try {
       setUploading(true);
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user?.id}-${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-
-      setProfile({ ...profile, avatar_url: data.publicUrl });
-      toast.success("Tải ảnh lên thành công");
+      // For now, we'll use a placeholder URL or base64
+      // In production, you should implement file upload to your backend
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const avatarUrl = reader.result as string;
+        setProfile({ ...profile, avatar_url: avatarUrl });
+        toast.success("Tải ảnh lên thành công");
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
       console.error("Error uploading avatar:", error);
       toast.error("Không thể tải ảnh lên. Vui lòng thử lại sau.");
-    } finally {
       setUploading(false);
+    } finally {
       // Reset input value to allow selecting same file again
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -137,18 +128,18 @@ export default function LandlordProfile() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.from("profiles").upsert({
-        user_id: user?.id,
-        full_name: profile.full_name,
-        email: profile.email,
+      const { error } = await apiClient.updateProfile({
+        fullName: profile.full_name,
         phone: profile.phone,
-        workplace: profile.zalo, // Lưu zalo vào workplace column
+        workplace: profile.zalo,
         bank_name: profile.bank_name,
         bank_account: profile.bank_account,
-        avatar_url: profile.avatar_url,
+        avatarUrl: profile.avatar_url,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error);
+      }
 
       toast.success("Đã lưu thông tin hồ sơ");
     } catch (error) {

@@ -1,13 +1,15 @@
-import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Search } from 'lucide-react';
-import { Layout } from '@/components/Layout';
-import { RoomCard } from '@/components/RoomCard';
-import { RoomFilters, type RoomFiltersState } from '@/components/RoomFilters';
-import { MOCK_ROOMS } from '@/data/mockData';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Search } from "lucide-react";
+import { Layout } from "@/components/Layout";
+import { RoomCard } from "@/components/RoomCard";
+import { RoomFilters, type RoomFiltersState } from "@/components/RoomFilters";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api";
+import { toast } from "sonner";
+import { mapApiRoomToUiRoom } from "@/utils/mappers";
 
 const DEFAULT_FILTERS: RoomFiltersState = {
   areas: [],
@@ -20,28 +22,57 @@ const DEFAULT_FILTERS: RoomFiltersState = {
 };
 
 export default function FindRoom() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roomFilters, setRoomFilters] = useState<RoomFiltersState>(DEFAULT_FILTERS);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roomFilters, setRoomFilters] =
+    useState<RoomFiltersState>(DEFAULT_FILTERS);
   const [savedRooms, setSavedRooms] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await apiClient.getRooms({ status: "active" });
+
+      if (error) {
+        throw new Error(error);
+      }
+      setRooms(data?.rooms?.map(mapApiRoomToUiRoom) || []);
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+      toast.error("Không thể tải danh sách phòng");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSaveRoom = (roomId: string) => {
     setSavedRooms((prev) =>
       prev.includes(roomId)
         ? prev.filter((id) => id !== roomId)
-        : [...prev, roomId]
+        : [...prev, roomId],
     );
   };
 
   const filteredRooms = useMemo(() => {
-    return MOCK_ROOMS.filter((room) => {
+    return rooms.filter((room) => {
       // Price filter
-      if (room.price < roomFilters.priceRange[0] || room.price > roomFilters.priceRange[1]) return false;
+      if (
+        room.price < roomFilters.priceRange[0] ||
+        room.price > roomFilters.priceRange[1]
+      )
+        return false;
 
       // Area filter
       if (roomFilters.areas.length > 0) {
         const hasMatchingArea = roomFilters.areas.some((areaId) => {
-          if (areaId === 'thach-hoa') return room.district?.includes('Thạch Hòa');
-          if (areaId === 'tan-xa') return room.district?.includes('Tân Xã');
+          if (areaId === "thach-hoa")
+            return room.district?.includes("Thạch Hòa");
+          if (areaId === "tan-xa") return room.district?.includes("Tân Xã");
           return false;
         });
         if (!hasMatchingArea) return false;
@@ -50,9 +81,9 @@ export default function FindRoom() {
       // Size filter
       if (roomFilters.sizes.length > 0) {
         const hasMatchingSize = roomFilters.sizes.some((sizeId) => {
-          if (sizeId === 'under-20') return room.area < 20;
-          if (sizeId === '20-40') return room.area >= 20 && room.area <= 40;
-          if (sizeId === 'over-40') return room.area > 40;
+          if (sizeId === "under-20") return room.area < 20;
+          if (sizeId === "20-40") return room.area >= 20 && room.area <= 40;
+          if (sizeId === "over-40") return room.area > 40;
           return false;
         });
         if (!hasMatchingSize) return false;
@@ -61,7 +92,7 @@ export default function FindRoom() {
       // Room type filter
       if (roomFilters.roomTypes.length > 0) {
         const hasMatchingType = roomFilters.roomTypes.some((typeId) => {
-          return room.roomType?.toLowerCase().includes(typeId.replace('-', ''));
+          return room.roomType?.toLowerCase().includes(typeId.replace("-", ""));
         });
         if (!hasMatchingType) return false;
       }
@@ -69,8 +100,13 @@ export default function FindRoom() {
       // Regulations filter
       if (roomFilters.regulations.length > 0) {
         const hasMatchingRegulation = roomFilters.regulations.some((regId) => {
-          if (regId === 'shared-owner') return room.owner?.verified === true;
-          if (regId === 'pets') return room.amenities?.some((a) => a.toLowerCase().includes('pet') || a.toLowerCase().includes('thú'));
+          if (regId === "shared-owner") return room.owner?.verified === true;
+          if (regId === "pets")
+            return room.amenities?.some(
+              (a) =>
+                a.toLowerCase().includes("pet") ||
+                a.toLowerCase().includes("thú"),
+            );
           return false;
         });
         if (!hasMatchingRegulation) return false;
@@ -79,19 +115,19 @@ export default function FindRoom() {
       // Amenities filter
       if (roomFilters.amenities.length > 0) {
         const amenitiesMap: { [key: string]: string[] } = {
-          'smart-lock': ['khóa', 'lock', 'thông minh'],
-          'parking': ['xe', 'parking', 'để xe'],
-          'fire-ext': ['cháy', 'fire', 'chữa'],
-          'washing-machine': ['giặt', 'máy'],
-          'elevator': ['thang máy', 'elevator'],
-          'drying-area': ['phơi', 'quần áo'],
-          'ev-charging': ['sạc', 'xe điện'],
+          "smart-lock": ["khóa", "lock", "thông minh"],
+          parking: ["xe", "parking", "để xe"],
+          "fire-ext": ["cháy", "fire", "chữa"],
+          "washing-machine": ["giặt", "máy"],
+          elevator: ["thang máy", "elevator"],
+          "drying-area": ["phơi", "quần áo"],
+          "ev-charging": ["sạc", "xe điện"],
         };
 
         const hasMatchingAmenity = roomFilters.amenities.some((amenityId) => {
           const keywords = amenitiesMap[amenityId] || [];
           return room.amenities?.some((a) =>
-            keywords.some((k) => a.toLowerCase().includes(k))
+            keywords.some((k) => a.toLowerCase().includes(k)),
           );
         });
         if (!hasMatchingAmenity) return false;
@@ -100,19 +136,21 @@ export default function FindRoom() {
       // Furniture filter
       if (roomFilters.furniture.length > 0) {
         const furnitureMap: { [key: string]: string[] } = {
-          'wardrobe': ['tủ', 'wardrobe'],
-          'bed': ['giường', 'bed'],
-          'shoe-rack': ['giá', 'giày'],
-          'desk': ['bàn', 'học'],
-          'stove': ['bếp', 'ga'],
+          wardrobe: ["tủ", "wardrobe"],
+          bed: ["giường", "bed"],
+          "shoe-rack": ["giá", "giày"],
+          desk: ["bàn", "học"],
+          stove: ["bếp", "ga"],
         };
 
-        const hasMatchingFurniture = roomFilters.furniture.some((furnitureId) => {
-          const keywords = furnitureMap[furnitureId] || [];
-          return room.amenities?.some((a) =>
-            keywords.some((k) => a.toLowerCase().includes(k))
-          );
-        });
+        const hasMatchingFurniture = roomFilters.furniture.some(
+          (furnitureId) => {
+            const keywords = furnitureMap[furnitureId] || [];
+            return room.amenities?.some((a) =>
+              keywords.some((k) => a.toLowerCase().includes(k)),
+            );
+          },
+        );
         if (!hasMatchingFurniture) return false;
       }
 
@@ -130,15 +168,15 @@ export default function FindRoom() {
 
       return true;
     });
-  }, [searchQuery, roomFilters]);
+  }, [searchQuery, roomFilters, rooms]);
 
   const formatPrice = (price: number) => {
-    return `${(price / 1000000).toFixed(1).replace('.0', '')} tr`;
+    return `${(price / 1000000).toFixed(1).replace(".0", "")} tr`;
   };
 
   const handleClearFilters = () => {
     setRoomFilters(DEFAULT_FILTERS);
-    setSearchQuery('');
+    setSearchQuery("");
   };
 
   return (
@@ -149,7 +187,9 @@ export default function FindRoom() {
           <div>
             <h1 className="text-2xl font-bold">Tìm Phòng Trọ</h1>
             <p className="text-muted-foreground text-sm">
-              {filteredRooms.length} phòng phù hợp
+              {loading
+                ? "Đang tải..."
+                : `${filteredRooms.length} phòng phù hợp`}
             </p>
           </div>
         </div>
@@ -187,25 +227,31 @@ export default function FindRoom() {
         </div>
 
         {/* Room Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRooms.map((room, index) => (
-            <motion.div
-              key={room.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <RoomCard
-                room={room}
-                onSave={handleSaveRoom}
-                isSaved={savedRooms.includes(room.id)}
-              />
-            </motion.div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredRooms.map((room, index) => (
+              <motion.div
+                key={room.id || index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <RoomCard
+                  room={room}
+                  onSave={handleSaveRoom}
+                  isSaved={savedRooms.includes(room.id)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredRooms.length === 0 && (
+        {!loading && filteredRooms.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -217,7 +263,7 @@ export default function FindRoom() {
             <Button
               variant="outline"
               onClick={() => {
-                setSearchQuery('');
+                setSearchQuery("");
                 setRoomFilters(DEFAULT_FILTERS);
               }}
             >

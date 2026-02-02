@@ -1,9 +1,10 @@
 // src/pages/tenant/AIChat.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MOCK_ROOMS } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
 
 type Msg = { who: 'user' | 'bot', text: string };
 
@@ -14,6 +15,24 @@ export default function TenantAIChat() {
   ]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rooms, setRooms] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      const { data, error } = await apiClient.getRooms({ status: 'active' });
+      if (error) {
+        throw new Error(error);
+      }
+      setRooms(data?.rooms || []);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      toast.error('Không thể tải danh sách phòng');
+    }
+  };
 
   const send = async () => {
     if (!text.trim()) return;
@@ -26,7 +45,7 @@ export default function TenantAIChat() {
     // mock response delay
     setTimeout(() => {
       // simple mock: suggest rooms in Thạch Hòa first
-      const suggestions = MOCK_ROOMS.filter(r => r.district === 'Thạch Hòa').slice(0, 3);
+      const suggestions = rooms.filter(r => r.district?.includes('Thạch Hòa')).slice(0, 3);
       const reply = suggestions.length
         ? `Gợi ý phòng tại Hòa Lạc:\n- ${suggestions.map(s => `${s.title} — ${(s.price/1000000).toFixed(1)}tr (${s.address})`).join('\n- ')}`
         : 'Mình chưa tìm thấy phòng phù hợp ở Hòa Lạc. Thử điều chỉnh bộ lọc.';

@@ -5,6 +5,7 @@ import roommatesRoutes from "./roommates.routes";
 import notificationsRoutes from "./notifications.routes";
 import walletRoutes from "./wallet.routes";
 import chatRoutes from "./chat.routes";
+import adminRoutes from "./admin.routes";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/roommates", roommatesRoutes);
 router.use("/notifications", notificationsRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/chat", chatRoutes);
+router.use("/admin", adminRoutes);
 
 export default router;

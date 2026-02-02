@@ -1,11 +1,19 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Heart, Phone, MapPin, Check, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
-import { Room } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  Heart,
+  Phone,
+  MapPin,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+} from "lucide-react";
+import { Room } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface RoomCardProps {
   room: Room;
@@ -26,7 +34,9 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
   const prevImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setCurrentImage((prev) => (prev - 1 + room.images.length) % room.images.length);
+    setCurrentImage(
+      (prev) => (prev - 1 + room.images.length) % room.images.length,
+    );
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -39,12 +49,12 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
   const handleContact = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    window.open(`https://zalo.me/${room.owner.phone}`, '_blank');
+    window.open(`https://zalo.me/${room.owner.phone}`, "_blank");
   };
 
   const formatPrice = (price: number) => {
     if (price >= 1000000) {
-      return `${(price / 1000000).toFixed(1).replace('.0', '')} tr`;
+      return `${(price / 1000000).toFixed(1).replace(".0", "")} tr`;
     }
     return `${(price / 1000).toFixed(0)}k`;
   };
@@ -64,10 +74,10 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
             alt={room.title}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
-          
+
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-          
+
           {/* Navigation Arrows */}
           {room.images.length > 1 && (
             <>
@@ -83,7 +93,7 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
-              
+
               {/* Dots */}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                 {room.images.map((_, idx) => (
@@ -95,8 +105,8 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
                       setCurrentImage(idx);
                     }}
                     className={cn(
-                      'w-1.5 h-1.5 rounded-full transition-all',
-                      idx === currentImage ? 'bg-white w-3' : 'bg-white/60'
+                      "w-1.5 h-1.5 rounded-full transition-all",
+                      idx === currentImage ? "bg-white w-3" : "bg-white/60",
                     )}
                   />
                 ))}
@@ -106,13 +116,15 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex gap-2">
-            {room.owner.verified && (
+            {room.owner?.verified && (
               <Badge className="bg-match-high/90 text-white border-0 backdrop-blur-sm">
                 <Check className="h-3 w-3 mr-1" />
                 Chính chủ
               </Badge>
             )}
-            {room.nearbyPlaces.some(p => p.includes('FPT') || p.includes('ĐHQG')) && (
+            {room.nearbyPlaces?.some(
+              (p) => p.includes("FPT") || p.includes("ĐHQG"),
+            ) && (
               <Badge className="bg-primary/90 text-primary-foreground border-0 backdrop-blur-sm">
                 Gần trường
               </Badge>
@@ -126,8 +138,8 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
           >
             <Heart
               className={cn(
-                'h-5 w-5 transition-colors',
-                saved ? 'fill-destructive text-destructive' : 'text-foreground'
+                "h-5 w-5 transition-colors",
+                saved ? "fill-destructive text-destructive" : "text-foreground",
               )}
             />
           </button>
@@ -142,7 +154,9 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
         {/* Content */}
         <div className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold line-clamp-2 flex-1 text-foreground">{room.title}</h3>
+            <h3 className="font-semibold line-clamp-2 flex-1 text-foreground">
+              {room.title}
+            </h3>
             <div className="text-right flex-shrink-0">
               <p className="text-xl font-bold text-primary">
                 {formatPrice(room.price)}
@@ -157,7 +171,7 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {room.amenities.slice(0, 3).map((amenity) => (
+            {room.amenities?.slice(0, 3).map((amenity) => (
               <span
                 key={amenity}
                 className="px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground"
@@ -165,9 +179,9 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
                 {amenity}
               </span>
             ))}
-            {room.amenities.length > 3 && (
+            {room.amenities?.length > 3 && (
               <span className="px-2 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
-                +{room.amenities.length - 3}
+                +{(room.amenities?.length || 0) - 3}
               </span>
             )}
           </div>
@@ -187,5 +201,3 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
     </Link>
   );
 }
-
-

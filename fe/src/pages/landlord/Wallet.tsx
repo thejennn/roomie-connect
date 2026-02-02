@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Wallet,
   Plus,
@@ -10,17 +10,22 @@ import {
   CreditCard,
   QrCode,
   Building2,
-  CheckCircle2
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import LandlordLayout from '@/components/layouts/LandlordLayout';
-import { formatCurrency } from '@/lib/utils';
-import { toast } from 'sonner';
+  CheckCircle2,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LandlordLayout from "@/components/layouts/LandlordLayout";
+import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 const topUpAmounts = [100000, 200000, 500000, 1000000, 2000000, 5000000];
 
@@ -52,40 +57,20 @@ export default function LandlordWallet() {
       setLoading(true);
 
       // Fetch wallet balance
-      const { data: walletData, error: walletError } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', user?.id)
-        .single();
+      const { data: walletData, error: walletError } = await apiClient.getWallet();
 
-      if (walletError) {
-        // Create wallet if doesn't exist
-        const { data: newWallet, error: createError } = await supabase
-          .from('wallets')
-          .insert({ user_id: user?.id, balance: 0 })
-          .select()
-          .single();
-
-        if (!createError && newWallet) {
-          setBalance(newWallet.balance);
-        }
-      } else if (walletData) {
-        setBalance(walletData.balance);
+      if (!walletError && walletData?.wallet) {
+        setBalance(walletData.wallet.balance);
       }
 
       // Fetch transactions
-      const { data: txData, error: txError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const { data: txData, error: txError } = await apiClient.getTransactions();
 
-      if (!txError && txData) {
-        setTransactions(txData);
+      if (!txError && txData?.transactions) {
+        setTransactions(txData.transactions);
       }
     } catch (error) {
-      console.error('Error fetching wallet data:', error);
+      console.error("Error fetching wallet data:", error);
     } finally {
       setLoading(false);
     }
@@ -93,7 +78,7 @@ export default function LandlordWallet() {
 
   const handleTopUp = async () => {
     if (topUpAmount < 10000) {
-      toast.error('Số tiền tối thiểu là 10,000đ');
+      toast.error("Số tiền tối thiểu là 10,000đ");
       return;
     }
 
@@ -101,37 +86,25 @@ export default function LandlordWallet() {
 
     try {
       // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Update wallet balance
-      const { error: updateError } = await supabase
-        .from('wallets')
-        .update({ balance: balance + topUpAmount })
-        .eq('user_id', user?.id);
+      // Call backend API to top up wallet
+      const { data, error } = await apiClient.topUpWallet(topUpAmount, "VietQR");
 
-      if (updateError) throw updateError;
+      if (error) throw new Error(error);
 
-      // Create transaction record
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user?.id,
-          amount: topUpAmount,
-          type: 'topup',
-          description: 'Nạp tiền qua VietQR'
-        });
+      if (data?.wallet) {
+        setBalance(data.wallet.balance);
+      }
 
-      if (txError) throw txError;
-
-      setBalance(prev => prev + topUpAmount);
       setShowSuccess(false);
       setShowTopUp(false);
       setTopUpAmount(0);
       toast.success(`Nạp thành công ${formatCurrency(topUpAmount)}`);
       fetchWalletData();
     } catch (error) {
-      console.error('Error topping up:', error);
-      toast.error('Có lỗi xảy ra khi nạp tiền');
+      console.error("Error topping up:", error);
+      toast.error("Có lỗi xảy ra khi nạp tiền");
       setShowSuccess(false);
     }
   };
@@ -152,7 +125,9 @@ export default function LandlordWallet() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Ví tiền</h1>
-          <p className="text-muted-foreground mt-1">Quản lý số dư và giao dịch của bạn</p>
+          <p className="text-muted-foreground mt-1">
+            Quản lý số dư và giao dịch của bạn
+          </p>
         </div>
 
         {/* Balance Card */}
@@ -161,19 +136,19 @@ export default function LandlordWallet() {
           animate={{ opacity: 1, y: 0 }}
         >
           <Card className="relative overflow-hidden bg-gradient-to-br from-primary to-accent text-white">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-24 -translate-x-24" />
             <CardContent className="relative p-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                   <Wallet className="h-6 w-6" />
                 </div>
-                <span className="text-lg font-medium text-white/80">Số dư hiện tại</span>
+                <span className="text-lg font-medium text-white/80">
+                  Số dư hiện tại
+                </span>
               </div>
               <div className="text-4xl md:text-5xl font-bold mb-8">
                 {formatCurrency(balance)}
               </div>
-              <Button 
+              <Button
                 onClick={() => setShowTopUp(true)}
                 className="bg-white text-primary hover:bg-white/90 rounded-full"
                 size="lg"
@@ -195,11 +170,17 @@ export default function LandlordWallet() {
                 </div>
                 <div>
                   <div className="font-semibold">Gói Tin Lẻ</div>
-                  <div className="text-sm text-muted-foreground">Thanh toán theo tin</div>
+                  <div className="text-sm text-muted-foreground">
+                    Thanh toán theo tin
+                  </div>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-primary mb-2">50.000đ / tin</div>
-              <p className="text-sm text-muted-foreground">Hiển thị 30 ngày, đăng nhanh, dễ dàng</p>
+              <div className="text-2xl font-bold text-primary mb-2">
+                50.000đ / tin
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Hiển thị 30 ngày, đăng nhanh, dễ dàng
+              </p>
             </CardContent>
           </Card>
           <Card className="border-primary">
@@ -213,11 +194,17 @@ export default function LandlordWallet() {
                 </div>
                 <div>
                   <div className="font-semibold">Gói Tháng</div>
-                  <div className="text-sm text-muted-foreground">Không giới hạn tin</div>
+                  <div className="text-sm text-muted-foreground">
+                    Không giới hạn tin
+                  </div>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-accent mb-2">500.000đ / tháng</div>
-              <p className="text-sm text-muted-foreground">Đăng không giới hạn, ưu tiên hiển thị</p>
+              <div className="text-2xl font-bold text-accent mb-2">
+                500.000đ / tháng
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Đăng không giới hạn, ưu tiên hiển thị
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -240,20 +227,33 @@ export default function LandlordWallet() {
                     className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${
-                        tx.amount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                      }`}>
-                        {tx.amount > 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                      <div
+                        className={`p-2 rounded-lg ${
+                          tx.amount > 0
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-rose-100 text-rose-600"
+                        }`}
+                      >
+                        {tx.amount > 0 ? (
+                          <ArrowDownLeft className="h-4 w-4" />
+                        ) : (
+                          <ArrowUpRight className="h-4 w-4" />
+                        )}
                       </div>
                       <div>
-                        <div className="font-medium">{tx.description || 'Giao dịch'}</div>
+                        <div className="font-medium">
+                          {tx.description || "Giao dịch"}
+                        </div>
                         <div className="text-sm text-muted-foreground">
-                          {new Date(tx.created_at).toLocaleDateString('vi-VN')}
+                          {new Date(tx.created_at).toLocaleDateString("vi-VN")}
                         </div>
                       </div>
                     </div>
-                    <div className={`font-semibold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
+                    <div
+                      className={`font-semibold ${tx.amount > 0 ? "text-emerald-600" : "text-rose-600"}`}
+                    >
+                      {tx.amount > 0 ? "+" : ""}
+                      {formatCurrency(tx.amount)}
                     </div>
                   </div>
                 ))}
@@ -269,7 +269,7 @@ export default function LandlordWallet() {
           <DialogHeader>
             <DialogTitle>Nạp tiền vào ví</DialogTitle>
           </DialogHeader>
-          
+
           <AnimatePresence mode="wait">
             {showSuccess ? (
               <motion.div
@@ -281,13 +281,15 @@ export default function LandlordWallet() {
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  transition={{ delay: 0.2, type: 'spring' }}
+                  transition={{ delay: 0.2, type: "spring" }}
                   className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 mb-4"
                 >
                   <CheckCircle2 className="h-10 w-10" />
                 </motion.div>
                 <h3 className="text-lg font-semibold mb-2">Đang xử lý...</h3>
-                <p className="text-muted-foreground">Vui lòng chờ trong giây lát</p>
+                <p className="text-muted-foreground">
+                  Vui lòng chờ trong giây lát
+                </p>
               </motion.div>
             ) : (
               <motion.div
@@ -314,11 +316,13 @@ export default function LandlordWallet() {
                         {topUpAmounts.map((amount) => (
                           <Button
                             key={amount}
-                            variant={topUpAmount === amount ? 'default' : 'outline'}
+                            variant={
+                              topUpAmount === amount ? "default" : "outline"
+                            }
                             size="sm"
                             onClick={() => setTopUpAmount(amount)}
                           >
-                            {formatCurrency(amount).replace(' ₫', '')}
+                            {formatCurrency(amount).replace(" ₫", "")}
                           </Button>
                         ))}
                       </div>
@@ -326,7 +330,7 @@ export default function LandlordWallet() {
                         type="number"
                         placeholder="Hoặc nhập số khác"
                         className="mt-2"
-                        value={topUpAmount || ''}
+                        value={topUpAmount || ""}
                         onChange={(e) => setTopUpAmount(Number(e.target.value))}
                       />
                     </div>
@@ -337,13 +341,16 @@ export default function LandlordWallet() {
                           <QrCode className="h-32 w-32 text-foreground" />
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          Quét mã QR để thanh toán <span className="font-semibold text-foreground">{formatCurrency(topUpAmount)}</span>
+                          Quét mã QR để thanh toán{" "}
+                          <span className="font-semibold text-foreground">
+                            {formatCurrency(topUpAmount)}
+                          </span>
                         </p>
                       </div>
                     )}
 
-                    <Button 
-                      className="w-full rounded-full" 
+                    <Button
+                      className="w-full rounded-full"
                       onClick={handleTopUp}
                       disabled={topUpAmount < 10000}
                     >
@@ -358,20 +365,29 @@ export default function LandlordWallet() {
                         <span className="font-medium">Vietcombank</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Số tài khoản</span>
-                        <span className="font-medium font-mono">1234567890</span>
+                        <span className="text-muted-foreground">
+                          Số tài khoản
+                        </span>
+                        <span className="font-medium font-mono">
+                          1234567890
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Chủ tài khoản</span>
+                        <span className="text-muted-foreground">
+                          Chủ tài khoản
+                        </span>
                         <span className="font-medium">NOC NOC JSC</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Nội dung</span>
-                        <span className="font-medium font-mono">NAPVI USER123</span>
+                        <span className="font-medium font-mono">
+                          NAPVI USER123
+                        </span>
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground text-center">
-                      Sau khi chuyển khoản, số dư sẽ được cập nhật trong 1-5 phút
+                      Sau khi chuyển khoản, số dư sẽ được cập nhật trong 1-5
+                      phút
                     </p>
                   </TabsContent>
                 </Tabs>
@@ -383,5 +399,3 @@ export default function LandlordWallet() {
     </LandlordLayout>
   );
 }
-
-

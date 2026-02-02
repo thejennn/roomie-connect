@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import React from "react";
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -49,7 +50,7 @@ import LandlordLayout from '@/components/layouts/LandlordLayout';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 
 type RoomStatus = 'pending' | 'active' | 'rejected' | 'expired';
 
@@ -109,14 +110,12 @@ export default function LandlordPosts() {
   const fetchPosts = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('rooms')
-        .select('*')
-        .eq('landlord_id', user?.id)
-        .order('created_at', { ascending: false });
+      const { data, error } = await apiClient.getMyRooms();
 
-      if (error) throw error;
-      setPosts(data || []);
+      if (error) {
+        throw new Error(error);
+      }
+      setPosts(data?.rooms || []);
     } catch (error) {
       console.error('Error fetching posts:', error);
       toast.error('Không thể tải danh sách tin đăng');
@@ -127,12 +126,11 @@ export default function LandlordPosts() {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('rooms')
-        .delete()
-        .eq('id', id);
+      const { error } = await apiClient.deleteRoom(id);
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error);
+      }
 
       toast.success('Đã xóa tin đăng');
       fetchPosts();
@@ -147,15 +145,15 @@ export default function LandlordPosts() {
   const handleDuplicate = async (post: Room) => {
     try {
       const { id, created_at, expires_at, ...postData } = post;
-      const { error } = await supabase
-        .from('rooms')
-        .insert({
-          ...postData,
-          title: `${postData.title} (Copy)`,
-          status: 'pending',
-        });
+      const { error } = await apiClient.createRoom({
+        ...postData,
+        title: `${postData.title} (Copy)`,
+        status: 'pending',
+      });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error);
+      }
 
       toast.success('Đã sao chép tin đăng');
       fetchPosts();

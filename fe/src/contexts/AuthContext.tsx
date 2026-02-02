@@ -1,13 +1,23 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 
 export type UserRole = 'admin' | 'landlord' | 'tenant';
 
+interface User {
+  id: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+  role?: UserRole;
+  isVerified?: boolean;
+  created_at?: string;
+  aud?: string;
+}
+
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
+  session: string | null; // JWT token
   role: UserRole | null;
   loading: boolean;
   walletBalance: number; // for landlords (mock)
@@ -24,7 +34,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<string | null>(null); // JWT token
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,21 +43,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [aiTokens, setAiTokens] = useState<number>(0);
 
   useEffect(() => {
-    // Keep original supabase listener but prefer mock-first on demo logins
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
+    // Check for existing session on mount
+    const checkSession = async () => {
+      const token = apiClient.getToken();
+      if (token) {
+        const { data, error } = await apiClient.getProfile();
+        if (data && !error) {
+          setUser(data.user);
+          setSession(token);
+          setRole(data.user.role as UserRole);
+        } else {
+          // Invalid token, clear it
+          apiClient.setToken(null);
+        }
+      }
       setLoading(false);
-    });
+    };
 
-    // check existing session (non-demo)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => data.subscription?.unsubscribe();
+    checkSession();
   }, []);
 
   const DEMO_ACCOUNT_ROLE: Record<string, UserRole> = {
@@ -118,36 +131,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
 
-    // Fallback to supabase signUp for real backend
+    // Call backend API to register
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: window.location.origin }
-      });
-      if (data?.user && roleArg) {
-        // try to write role/profile to DB (best-effort)
-        await supabase.from('user_roles').insert({ user_id: data.user.id, role: roleArg });
+      const fullName = metadata?.fullName as string || email.split('@')[0];
+      const { data, error } = await apiClient.register(email, password, fullName, roleArg);
+
+      if (error) {
+        return { error: new Error(error) };
       }
-      return { error: error ?? null };
+
+      if (data?.token && data?.user) {
+        apiClient.setToken(data.token);
+        setSession(data.token);
+        setUser(data.user);
+        setRole(data.user.role as UserRole);
+      }
+
+      return { error: null };
     } catch (err: any) {
       return { error: err };
     }
   };
 
-  const signIn = async (email: string, _password: string) => {
+  const signIn = async (email: string, password: string) => {
     if (DEMO_ACCOUNT_ROLE[email]) {
       seedDemoAccount(email);
       return { error: null };
     }
 
-    // Default to supabase sign in
+    // Call backend API to login
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: _password });
-      if (!error) {
-        // supabase listener will update session/user
+      const { data, error } = await apiClient.login(email, password);
+
+      if (error) {
+        return { error: new Error(error) };
       }
-      return { error: error ?? null };
+
+      if (data?.token && data?.user) {
+        apiClient.setToken(data.token);
+        setSession(data.token);
+        setUser(data.user);
+        setRole(data.user.role as UserRole);
+      }
+
+      return { error: null };
     } catch (err: any) {
       return { error: err };
     }
@@ -163,7 +190,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAiTokens(0);
       return;
     }
-    await supabase.auth.signOut();
+
+    // Clear API token and state
+    apiClient.setToken(null);
     setUser(null);
     setSession(null);
     setRole(null);
