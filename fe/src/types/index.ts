@@ -62,7 +62,7 @@ export interface User {
   major: string;
   year: number;
   bio: string;
-  preferences: QuizPreferences;
+  preferences: Partial<QuizPreferences>;
   zaloId?: string;
   verified: boolean;
 }

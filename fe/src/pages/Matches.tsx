@@ -1,36 +1,46 @@
-import { useState, useEffect } from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Phone, MessageCircle, ArrowLeft, Users, UserPlus, Share2 } from 'lucide-react';
-import { Layout } from '@/components/Layout';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { QuizPreferences, MatchResult } from '@/types';
-import { DEFAULT_USER_PREFERENCES } from '@/data/mockData';
-import { findMatches, getMatchLevel } from '@/utils/matching';
-import { cn } from '@/lib/utils';
-import { apiClient } from '@/lib/api';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { useLocation, Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  Phone,
+  MessageCircle,
+  ArrowLeft,
+  Users,
+  UserPlus,
+  Share2,
+} from "lucide-react";
+import { Layout } from "@/components/Layout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { QuizPreferences, MatchResult } from "@/types";
+import { DEFAULT_USER_PREFERENCES } from "@/data/mockData";
+import { findMatches, getMatchLevel } from "@/utils/matching";
+import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api";
+import { toast } from "sonner";
 
 function MatchCard({ match, index }: { match: MatchResult; index: number }) {
   const level = getMatchLevel(match.score);
-  
+
   const levelColors = {
-    high: 'text-match-high border-match-high',
-    good: 'text-match-good border-match-good',
-    average: 'text-match-average border-match-average',
-    low: 'text-match-low border-match-low',
+    high: "text-match-high border-match-high",
+    good: "text-match-good border-match-good",
+    average: "text-match-average border-match-average",
+    low: "text-match-low border-match-low",
   };
 
   const levelBg = {
-    high: 'bg-match-high',
-    good: 'bg-match-good',
-    average: 'bg-match-average',
-    low: 'bg-match-low',
+    high: "bg-match-high",
+    good: "bg-match-good",
+    average: "bg-match-average",
+    low: "bg-match-low",
   };
 
   const handleContactZalo = () => {
-    window.open(`https://zalo.me/${match.user.zaloId || '0912345678'}`, '_blank');
+    window.open(
+      `https://zalo.me/${match.user.zaloId || "0912345678"}`,
+      "_blank",
+    );
   };
 
   return (
@@ -45,15 +55,18 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
         <div className="relative flex-shrink-0">
           <div
             className={cn(
-              'absolute inset-0 rounded-full border-4',
-              levelColors[level]
+              "absolute inset-0 rounded-full border-4",
+              levelColors[level],
             )}
             style={{
               background: `conic-gradient(${
-                level === 'high' ? 'hsl(var(--match-high))' :
-                level === 'good' ? 'hsl(var(--match-good))' :
-                level === 'average' ? 'hsl(var(--match-average))' :
-                'hsl(var(--match-low))'
+                level === "high"
+                  ? "hsl(var(--match-high))"
+                  : level === "good"
+                    ? "hsl(var(--match-good))"
+                    : level === "average"
+                      ? "hsl(var(--match-average))"
+                      : "hsl(var(--match-low))"
               } ${match.score}%, transparent 0)`,
             }}
           />
@@ -66,8 +79,8 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
           </div>
           <div
             className={cn(
-              'absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-xs font-bold text-white',
-              levelBg[level]
+              "absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-xs font-bold text-white",
+              levelBg[level],
             )}
           >
             {match.score}%
@@ -118,11 +131,7 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
               <MessageCircle className="h-4 w-4 mr-2" />
               Kết nối Zalo
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full"
-            >
+            <Button variant="outline" size="sm" className="rounded-full">
               Xem thêm
             </Button>
           </div>
@@ -134,7 +143,9 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
 
 export default function Matches() {
   const location = useLocation();
-  const preferences = (location.state?.preferences as QuizPreferences) || DEFAULT_USER_PREFERENCES;
+  const preferences =
+    (location.state?.preferences as QuizPreferences) ||
+    DEFAULT_USER_PREFERENCES;
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -150,10 +161,23 @@ export default function Matches() {
       if (error) {
         throw new Error(error);
       }
-      setUsers(data?.profiles || []);
+      const mappedUsers = (data?.profiles || []).map((profile: any) => ({
+        id: profile.userId?._id || profile._id,
+        name: profile.userId?.fullName || "Người dùng",
+        avatar: profile.userId?.avatarUrl || "https://github.com/shadcn.png",
+        age: 20, // Tuổi mặc định vì backend chưa có
+        university:
+          profile.university || profile.userId?.university || "Đại học FPT",
+        major: "Dữ liệu chưa có",
+        year: 2,
+        bio: profile.bio || "Chưa có giới thiệu",
+        preferences: profile.preferences || {},
+        verified: profile.userId?.isVerified || false,
+      }));
+      setUsers(mappedUsers);
     } catch (error) {
-      console.error('Error fetching roommate profiles:', error);
-      toast.error('Không thể tải danh sách bạn ở ghép');
+      console.error("Error fetching roommate profiles:", error);
+      toast.error("Không thể tải danh sách bạn ở ghép");
     } finally {
       setLoading(false);
     }
@@ -178,7 +202,10 @@ export default function Matches() {
       <div className="container py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Link to="/quiz" className="p-2 rounded-full hover:bg-muted transition-colors">
+          <Link
+            to="/quiz"
+            className="p-2 rounded-full hover:bg-muted transition-colors"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
@@ -231,7 +258,8 @@ export default function Matches() {
             </div>
             <h3 className="text-xl font-bold mb-2">Đang mở rộng tìm kiếm...</h3>
             <p className="text-muted-foreground mb-6">
-              Chưa tìm thấy bạn ở ghép phù hợp trên 60%. Hãy mời bạn bè tham gia!
+              Chưa tìm thấy bạn ở ghép phù hợp trên 60%. Hãy mời bạn bè tham
+              gia!
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button className="rounded-full">
@@ -273,5 +301,3 @@ export default function Matches() {
     </Layout>
   );
 }
-
-
