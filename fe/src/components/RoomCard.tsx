@@ -106,7 +106,7 @@ export function RoomCard({ room, onSave, isSaved = false }: RoomCardProps) {
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex gap-2">
-            {room.owner.verified && (
+            {room.owner?.verified && (
               <Badge className="bg-match-high/90 text-white border-0 backdrop-blur-sm">
                 <Check className="h-3 w-3 mr-1" />
                 Chính chủ
