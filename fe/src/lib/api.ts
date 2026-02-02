@@ -204,6 +204,92 @@ class ApiClient {
       body: JSON.stringify(profileData),
     });
   }
+
+  // Admin endpoints
+  async getAdminStats() {
+    return this.request<{
+      totals: {
+        revenue: number;
+        users: number;
+        newRooms: number;
+        closeRate: number;
+      };
+      revenueMonthly: any[];
+      userGrowth: any[];
+      recentActivity: string[];
+      stats: {
+        landlords: number;
+        tenants: number;
+        activeRooms: number;
+        pendingRooms: number;
+        rejectedRooms: number;
+      };
+    }>('/admin/stats');
+  }
+
+  async getAdminRooms(params?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const query = queryParams.toString();
+    return this.request<{ rooms: any[]; pagination: any }>(
+      `/admin/rooms${query ? `?${query}` : ''}`
+    );
+  }
+
+  async approveRoom(id: string) {
+    return this.request<{ message: string; room: any }>(`/admin/rooms/${id}/approve`, {
+      method: 'PUT',
+    });
+  }
+
+  async rejectRoom(id: string, reason: string) {
+    return this.request<{ message: string; room: any }>(`/admin/rooms/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async getAdminUsers(params?: {
+    role?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const query = queryParams.toString();
+    return this.request<{ users: any[]; pagination: any }>(
+      `/admin/users${query ? `?${query}` : ''}`
+    );
+  }
+
+  async banUser(id: string) {
+    return this.request<{ message: string; user: any }>(`/admin/users/${id}/ban`, {
+      method: 'PUT',
+    });
+  }
+
+  async unbanUser(id: string) {
+    return this.request<{ message: string; user: any }>(`/admin/users/${id}/unban`, {
+      method: 'PUT',
+    });
+  }
 }
 
 export const apiClient = new ApiClient();

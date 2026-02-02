@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, Heart, Phone, MessageCircle, MapPin, Clock, Eye, 
+import {
+  ArrowLeft, Heart, Phone, MessageCircle, MapPin, Clock, Eye,
   Check, Zap, Droplets, Wifi, Sparkles, Car, Users, Layers, Home,
   ChevronLeft, ChevronRight, X, Share2
 } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MOCK_ROOMS } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
 
 const AMENITY_ICONS: Record<string, React.ReactNode> = {
   'Điều hoà': <Zap className="h-4 w-4" />,
@@ -29,8 +30,41 @@ export default function RoomDetail() {
   const [saved, setSaved] = useState(false);
   const [currentImage, setCurrentImage] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [room, setRoom] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const room = MOCK_ROOMS.find(r => r.id === id);
+  useEffect(() => {
+    if (id) {
+      fetchRoom();
+    }
+  }, [id]);
+
+  const fetchRoom = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await apiClient.getRoom(id!);
+
+      if (error) {
+        throw new Error(error);
+      }
+      setRoom(data?.room);
+    } catch (error) {
+      console.error('Error fetching room:', error);
+      toast.error('Không thể tải thông tin phòng');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="container py-12 text-center">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
 
   if (!room) {
     return (
@@ -69,11 +103,11 @@ export default function RoomDetail() {
           <button onClick={() => setShowLightbox(false)} className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 rounded-full">
             <X className="h-6 w-6" />
           </button>
-          <button onClick={() => setCurrentImage(prev => (prev - 1 + room.images.length) % room.images.length)} className="absolute left-4 p-2 text-white hover:bg-white/10 rounded-full">
+          <button onClick={() => setCurrentImage(prev => (prev - 1 + (room.images?.length || 0)) % (room.images?.length || 1))} className="absolute left-4 p-2 text-white hover:bg-white/10 rounded-full">
             <ChevronLeft className="h-8 w-8" />
           </button>
-          <img src={room.images[currentImage]} alt="" className="max-h-[90vh] max-w-[90vw] object-contain" />
-          <button onClick={() => setCurrentImage(prev => (prev + 1) % room.images.length)} className="absolute right-4 p-2 text-white hover:bg-white/10 rounded-full">
+          <img src={room.images?.[currentImage]} alt="" className="max-h-[90vh] max-w-[90vw] object-contain" />
+          <button onClick={() => setCurrentImage(prev => (prev + 1) % (room.images?.length || 1))} className="absolute right-4 p-2 text-white hover:bg-white/10 rounded-full">
             <ChevronRight className="h-8 w-8" />
           </button>
         </motion.div>
@@ -91,9 +125,9 @@ export default function RoomDetail() {
             {/* Image Gallery */}
             <div className="grid grid-cols-4 gap-2 rounded-2xl overflow-hidden">
               <div className="col-span-4 md:col-span-2 md:row-span-2 aspect-[4/3] md:aspect-square cursor-pointer" onClick={() => setShowLightbox(true)}>
-                <img src={room.images[0]} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform" />
+                <img src={room.images?.[0]} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform" />
               </div>
-              {room.images.slice(1, 5).map((img, idx) => (
+              {room.images?.slice(1, 5).map((img: string, idx: number) => (
                 <div key={idx} className="hidden md:block aspect-square cursor-pointer" onClick={() => { setCurrentImage(idx + 1); setShowLightbox(true); }}>
                   <img src={img} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform" />
                 </div>
@@ -103,14 +137,14 @@ export default function RoomDetail() {
             {/* Header */}
             <div>
               <div className="flex gap-2 mb-2">
-                {room.owner.verified && <Badge className="bg-match-high text-white"><Check className="h-3 w-3 mr-1" />Chính chủ</Badge>}
+                {room.landlordId?.verified && <Badge className="bg-match-high text-white"><Check className="h-3 w-3 mr-1" />Chính chủ</Badge>}
                 <Badge variant="outline">{room.roomType === 'studio' ? 'Studio' : room.roomType === 'shared' ? 'Ở ghép' : room.roomType === 'apartment' ? 'Căn hộ' : 'Phòng đơn'}</Badge>
               </div>
               <h1 className="text-2xl font-bold mb-2">{room.title}</h1>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{room.address}</span>
-                <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{timeAgo(room.postedAt)}</span>
-                <span className="flex items-center gap-1"><Eye className="h-4 w-4" />{room.views} lượt xem</span>
+                <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{timeAgo(new Date(room.created_at || room.postedAt))}</span>
+                <span className="flex items-center gap-1"><Eye className="h-4 w-4" />{room.views || 0} lượt xem</span>
               </div>
             </div>
 
@@ -155,7 +189,7 @@ export default function RoomDetail() {
             <div>
               <h3 className="font-semibold mb-3">✨ Tiện ích</h3>
               <div className="flex flex-wrap gap-2">
-                {room.amenities.map((amenity) => (
+                {room.amenities?.map((amenity: string) => (
                   <span key={amenity} className="flex items-center gap-2 px-3 py-2 bg-muted rounded-full text-sm">
                     {AMENITY_ICONS[amenity] || <Check className="h-4 w-4" />} {amenity}
                   </span>
@@ -180,18 +214,18 @@ export default function RoomDetail() {
 
               {/* Owner */}
               <div className="flex items-center gap-3">
-                <img src={room.owner.avatar} alt="" className="w-12 h-12 rounded-full object-cover" />
+                <img src={room.landlordId?.avatar || '/placeholder-avatar.png'} alt="" className="w-12 h-12 rounded-full object-cover" />
                 <div className="flex-1">
-                  <p className="font-medium">{room.owner.name}</p>
-                  {room.owner.verified && <p className="text-xs text-match-high flex items-center gap-1"><Check className="h-3 w-3" />Đã xác minh</p>}
+                  <p className="font-medium">{room.landlordId?.fullName || room.landlordId?.name || 'Chủ nhà'}</p>
+                  {room.landlordId?.verified && <p className="text-xs text-match-high flex items-center gap-1"><Check className="h-3 w-3" />Đã xác minh</p>}
                 </div>
               </div>
 
               {/* CTAs */}
-              <Button className="w-full rounded-full" size="lg" onClick={() => window.open(`https://zalo.me/${room.owner.phone}`, '_blank')}>
+              <Button className="w-full rounded-full" size="lg" onClick={() => window.open(`https://zalo.me/${room.landlordId?.phone}`, '_blank')}>
                 <MessageCircle className="h-4 w-4 mr-2" /> Nhắn Zalo
               </Button>
-              <Button variant="outline" className="w-full rounded-full" size="lg" onClick={() => window.open(`tel:${room.owner.phone}`)}>
+              <Button variant="outline" className="w-full rounded-full" size="lg" onClick={() => window.open(`tel:${room.landlordId?.phone}`)}>
                 <Phone className="h-4 w-4 mr-2" /> Gọi điện
               </Button>
               <div className="flex gap-2">
@@ -213,7 +247,7 @@ export default function RoomDetail() {
           <div>
             <p className="text-xl font-bold text-primary">{formatPrice(room.price)}<span className="text-sm font-normal text-muted-foreground">/tháng</span></p>
           </div>
-          <Button className="flex-1 rounded-full" onClick={() => window.open(`https://zalo.me/${room.owner.phone}`, '_blank')}>
+          <Button className="flex-1 rounded-full" onClick={() => window.open(`https://zalo.me/${room.landlordId?.phone}`, '_blank')}>
             <MessageCircle className="h-4 w-4 mr-2" /> Nhắn Zalo
           </Button>
         </div>

@@ -1,38 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { mockPendingRooms, MockRoom } from '@/lib/adminMockData';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
+
+type RoomStatus = 'pending' | 'active' | 'rejected';
 
 export default function AdminRooms() {
-  const [rooms, setRooms] = useState<MockRoom[]>(mockPendingRooms);
-  const [activeTab, setActiveTab] = useState<'pending'|'active'|'hidden'>('pending');
-  const [rejectReason, setRejectReason] = useState('');
-  const [currentRejectId, setCurrentRejectId] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<RoomStatus | 'all'>('pending');
 
-  const changeStatus = (id: string, status: MockRoom['status']) => {
-    setRooms(rs => rs.map(r => r.id === id ? { ...r, status } : r));
-    // mock notification - in real app call API
-    console.log(`Notify: room ${id} status -> ${status}`);
-  };
+  useEffect(() => {
+    fetchRooms();
+  }, [activeTab]);
 
-  const handleReject = (id: string) => {
-    setCurrentRejectId(id);
-    const reason = prompt('Lý do từ chối (nhập)') || '';
-    if (reason) {
-      // apply rejection
-      changeStatus(id, 'rejected');
-      console.log(`Rejected ${id}: ${reason}`);
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      const params = activeTab === 'all' ? {} : { status: activeTab };
+      const { data, error } = await apiClient.getAdminRooms(params);
+
+      if (error) {
+        throw new Error(error);
+      }
+      setRooms(data?.rooms || []);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      toast.error('Không thể tải danh sách tin đăng');
+    } finally {
+      setLoading(false);
     }
-    setCurrentRejectId(null);
   };
 
-  const filtered = rooms.filter(r => {
-    if (activeTab === 'pending') return r.status === 'pending';
-    if (activeTab === 'active') return r.status === 'active';
-    if (activeTab === 'hidden') return r.status === 'hidden' || r.status === 'rejected';
-    return true;
-  });
+  const handleApprove = async (id: string) => {
+    try {
+      const { error } = await apiClient.approveRoom(id);
+      if (error) {
+        throw new Error(error);
+      }
+      toast.success('Đã phê duyệt tin đăng');
+      fetchRooms();
+    } catch (error) {
+      console.error('Error approving room:', error);
+      toast.error('Không thể phê duyệt tin đăng');
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    const reason = prompt('Lý do từ chối (nhập)') || 'Không đạt tiêu chuẩn';
+    if (!reason) return;
+
+    try {
+      const { error } = await apiClient.rejectRoom(id, reason);
+      if (error) {
+        throw new Error(error);
+      }
+      toast.success('Đã từ chối tin đăng');
+      fetchRooms();
+    } catch (error) {
+      console.error('Error rejecting room:', error);
+      toast.error('Không thể từ chối tin đăng');
+    }
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="py-12 text-center">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -40,9 +81,30 @@ export default function AdminRooms() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Quản lý Tin đăng</h2>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => setActiveTab('pending')}>Chờ duyệt</Button>
-            <Button variant="ghost" onClick={() => setActiveTab('active')}>Đang hiển thị</Button>
-            <Button variant="ghost" onClick={() => setActiveTab('hidden')}>Đã ẩn</Button>
+            <Button
+              variant={activeTab === 'pending' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('pending')}
+            >
+              Chờ duyệt
+            </Button>
+            <Button
+              variant={activeTab === 'active' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('active')}
+            >
+              Đang hiển thị
+            </Button>
+            <Button
+              variant={activeTab === 'rejected' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('rejected')}
+            >
+              Đã từ chối
+            </Button>
+            <Button
+              variant={activeTab === 'all' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('all')}
+            >
+              Tất cả
+            </Button>
           </div>
         </div>
 
@@ -60,26 +122,53 @@ export default function AdminRooms() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.map(r => (
-                <tr key={r.id}>
-                  <td className="px-4 py-3"><div className="h-12 w-20 bg-slate-100 rounded" /></td>
-                  <td className="px-4 py-3 max-w-xs truncate">{r.title}</td>
-                  <td className="px-4 py-3">{r.landlord}</td>
-                  <td className="px-4 py-3">{r.price.toLocaleString('vi-VN')}₫</td>
-                  <td className="px-4 py-3">{r.postedAt}</td>
+              {rooms.map(r => (
+                <tr key={r.id || r._id}>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${r.status === 'pending' ? 'bg-amber-100 text-amber-700' : r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    {r.images?.[0] ? (
+                      <img src={r.images[0]} alt="" className="h-12 w-20 bg-slate-100 rounded object-cover" />
+                    ) : (
+                      <div className="h-12 w-20 bg-slate-100 rounded" />
+                    )}
+                  </td>
+                  <td className="px-4 py-3 max-w-xs truncate">{r.title}</td>
+                  <td className="px-4 py-3">{r.landlordId?.fullName || 'N/A'}</td>
+                  <td className="px-4 py-3">{r.price?.toLocaleString('vi-VN')}₫</td>
+                  <td className="px-4 py-3">
+                    {r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      r.status === 'pending'
+                        ? 'bg-amber-100 text-amber-700'
+                        : r.status === 'active'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
                       {r.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
-                    {r.status !== 'active' && <Button size="sm" onClick={() => changeStatus(r.id, 'active')}>Duyệt</Button>}
-                    {r.status !== 'rejected' && <Button variant="ghost" size="sm" onClick={() => handleReject(r.id)}>Từ chối</Button>}
-                    <Button variant="destructive" size="sm" onClick={() => setRooms(rs => rs.filter(x => x.id !== r.id))}>Xóa</Button>
+                    {r.status !== 'active' && (
+                      <Button size="sm" onClick={() => handleApprove(r.id || r._id)}>
+                        Duyệt
+                      </Button>
+                    )}
+                    {r.status !== 'rejected' && (
+                      <Button variant="ghost" size="sm" onClick={() => handleReject(r.id || r._id)}>
+                        Từ chối
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Không có tin</td></tr>}
+              {rooms.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                    Không có tin
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

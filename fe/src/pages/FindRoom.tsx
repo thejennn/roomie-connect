@@ -1,13 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { RoomCard } from '@/components/RoomCard';
 import { RoomFilters, type RoomFiltersState } from '@/components/RoomFilters';
-import { MOCK_ROOMS } from '@/data/mockData';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
 
 const DEFAULT_FILTERS: RoomFiltersState = {
   areas: [],
@@ -23,6 +24,29 @@ export default function FindRoom() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roomFilters, setRoomFilters] = useState<RoomFiltersState>(DEFAULT_FILTERS);
   const [savedRooms, setSavedRooms] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await apiClient.getRooms({ status: 'active' });
+
+      if (error) {
+        throw new Error(error);
+      }
+      setRooms(data?.rooms || []);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      toast.error('Không thể tải danh sách phòng');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSaveRoom = (roomId: string) => {
     setSavedRooms((prev) =>
@@ -33,7 +57,7 @@ export default function FindRoom() {
   };
 
   const filteredRooms = useMemo(() => {
-    return MOCK_ROOMS.filter((room) => {
+    return rooms.filter((room) => {
       // Price filter
       if (room.price < roomFilters.priceRange[0] || room.price > roomFilters.priceRange[1]) return false;
 
@@ -130,7 +154,7 @@ export default function FindRoom() {
 
       return true;
     });
-  }, [searchQuery, roomFilters]);
+  }, [searchQuery, roomFilters, rooms]);
 
   const formatPrice = (price: number) => {
     return `${(price / 1000000).toFixed(1).replace('.0', '')} tr`;
@@ -149,7 +173,7 @@ export default function FindRoom() {
           <div>
             <h1 className="text-2xl font-bold">Tìm Phòng Trọ</h1>
             <p className="text-muted-foreground text-sm">
-              {filteredRooms.length} phòng phù hợp
+              {loading ? 'Đang tải...' : `${filteredRooms.length} phòng phù hợp`}
             </p>
           </div>
         </div>
@@ -187,25 +211,31 @@ export default function FindRoom() {
         </div>
 
         {/* Room Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRooms.map((room, index) => (
-            <motion.div
-              key={room.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <RoomCard
-                room={room}
-                onSave={handleSaveRoom}
-                isSaved={savedRooms.includes(room.id)}
-              />
-            </motion.div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredRooms.map((room, index) => (
+              <motion.div
+                key={room.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <RoomCard
+                  room={room}
+                  onSave={handleSaveRoom}
+                  isSaved={savedRooms.includes(room.id)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredRooms.length === 0 && (
+        {!loading && filteredRooms.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
