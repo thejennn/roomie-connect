@@ -37,7 +37,7 @@ export default function Landing() {
 		setModalMode(mode);
 		setRoleModalOpen(true);
 	};
-
+	
 	const continueWithRole = () => {
 		setRoleModalOpen(false);
 		if (modalMode === 'login') {
@@ -45,8 +45,9 @@ export default function Landing() {
 		} else {
 			navigate(`/auth/register?role=${selectedRole}`);
 		}
+		console.log(`Selected role: ${selectedRole}, Mode: ${modalMode}`);
 	};
-
+	console.log('Landing page rendered');
 	return (
 		<div className="min-h-screen bg-background overflow-hidden">
 			{/* Gradient Mesh Background */}

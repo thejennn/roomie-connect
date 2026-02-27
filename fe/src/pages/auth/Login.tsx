@@ -44,7 +44,7 @@ export default function Login() {
       } else {
         navigate('/tenant/find-room');
       }
-    }
+    } 
   }, [user, userRole, loading, navigate]);
 
   async function waitForRole(timeout = 2000) {
@@ -94,20 +94,6 @@ export default function Login() {
     }
   };
 
-  // Improved demo quick that waits briefly for seeded role
-  const demoQuick = async (addr: string) => {
-    setEmail(addr);
-    setPassword('demo');
-    setIsLoading(true);
-    await signIn(addr, 'demo');
-    // small wait for seed to complete
-    await new Promise((r) => setTimeout(r, 120));
-    setIsLoading(false);
-    // Now redirect based on the expected demo email
-    if (addr === 'landlord@demo.com') navigate('/landlord/dashboard');
-    if (addr === 'tenant@demo.com') navigate('/tenant/ai-chat');
-    if (addr === 'admin@demo.com') navigate('/admin/dashboard');
-  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

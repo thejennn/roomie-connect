@@ -37,6 +37,7 @@ interface AuthContextType {
   useAiToken: () => boolean;
   setAiTokens: React.Dispatch<React.SetStateAction<number>>;
   refreshAiTokens: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -276,6 +277,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Refresh user data from backend (after profile update)
+  const refreshUser = async () => {
+    try {
+      const { data, error } = await apiClient.getProfile();
+      if (data && !error) {
+        setUser(data.user);
+      }
+    } catch (err) {
+      console.error('Failed to refresh user:', err);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -294,6 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       useAiToken,
       setAiTokens,
       refreshAiTokens,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

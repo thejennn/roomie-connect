@@ -1,8 +1,14 @@
 import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Bell, Home, FileText, Users, AlertCircle, Settings, LogOut } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    navigate('/');
+  };
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-900">
       <aside className="w-72 bg-white border-r border-border shadow-sm flex flex-col">
@@ -53,7 +59,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div className="text-sm font-medium">Admin</div>
               <div className="text-xs text-muted-foreground">admin@knockknock.local</div>
             </div>
-            <button className="p-2 rounded-md hover:bg-slate-100"><LogOut className="h-4 w-4" /></button>
+            <button onClick={handleLogout} className="p-2 rounded-md hover:bg-slate-100"><LogOut className="h-4 w-4" /></button>
           </div>
         </div>
       </aside>

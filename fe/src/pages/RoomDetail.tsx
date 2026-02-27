@@ -65,8 +65,22 @@ export default function RoomDetail() {
     if (id) {
       fetchRoom();
       checkIfSaved();
+      // Track viewed room in localStorage
+      trackViewedRoom(id);
     }
   }, [id]);
+
+  const trackViewedRoom = (roomId: string) => {
+    try {
+      const viewedRooms = JSON.parse(localStorage.getItem('viewedRooms') || '[]');
+      if (!viewedRooms.includes(roomId)) {
+        viewedRooms.push(roomId);
+        localStorage.setItem('viewedRooms', JSON.stringify(viewedRooms));
+      }
+    } catch (error) {
+      console.error('Error tracking viewed room:', error);
+    }
+  };
 
   const fetchRoom = async () => {
     try {
