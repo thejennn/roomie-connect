@@ -49,7 +49,7 @@ const initialMessages: Message[] = [
   {
     id: '1',
     role: 'assistant',
-    content: 'Xin chào! Tôi là AI trợ lý của Nốc Nốc 🏠\n\nTôi có thể giúp bạn:\n• Tìm phòng trọ phù hợp\n• Tìm bạn ở ghép hợp tính cách\n• Tư vấn về khu vực Hòa Lạc\n\nBạn muốn tìm kiếm gì?',
+    content: 'Xin chào! Tôi là AI trợ lý của KnockKnock🏠\n\nTôi có thể giúp bạn:\n• Tìm phòng trọ phù hợp\n• Tìm bạn ở ghép hợp tính cách\n• Tư vấn về khu vực Hòa Lạc\n\nBạn muốn tìm kiếm gì?',
     timestamp: new Date(),
   }
 ];

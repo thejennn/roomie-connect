@@ -261,7 +261,7 @@ export default function Register() {
                   <Label htmlFor="phone">Số điện thoại *</Label>
                   <Input
                     id="phone"
-                    placeholder="0912345678"
+                    placeholder=""
                     value={formData.phone}
                     onChange={(e) => handleChange('phone', e.target.value)}
                     className={errors.phone ? 'border-destructive' : ''}
@@ -290,7 +290,7 @@ export default function Register() {
                   <Label htmlFor="bank_account">Số tài khoản</Label>
                   <Input
                     id="bank_account"
-                    placeholder="0123456789"
+                    placeholder=""
                     value={formData.bank_account}
                     onChange={(e) => handleChange('bank_account', e.target.value)}
                   />

@@ -84,7 +84,7 @@ export default function LandlordLayout({ children }: LandlordLayoutProps) {
             <div className="h-10 w-10 rounded-full gradient-bg flex items-center justify-center shadow-card">
               <span className="text-primary-foreground font-bold">KK</span>
             </div>
-            <span className="font-bold text-xl gradient-text">Nốc Nốc</span>
+            <span className="font-bold text-xl gradient-text">KnockKnock</span>
           </Link>
 
           {/* Create Post Button */}
@@ -136,7 +136,7 @@ export default function LandlordLayout({ children }: LandlordLayoutProps) {
                     </span>
                   </div>
                   <span className="font-bold text-xl gradient-text">
-                    Nốc Nốc
+                    KnockKnock
                   </span>
                 </Link>
 

@@ -87,7 +87,7 @@ export default function TenantLayout({ children }: TenantLayoutProps) {
             <div className="h-10 w-10 rounded-full gradient-bg flex items-center justify-center shadow-card">
               <span className="text-primary-foreground font-bold">KK</span>
             </div>
-            <span className="font-bold text-xl gradient-text">Nốc Nốc</span>
+            <span className="font-bold text-xl gradient-text">KnockKnock</span>
           </Link>
 
           {/* Navigation */}
@@ -128,7 +128,7 @@ export default function TenantLayout({ children }: TenantLayoutProps) {
                   <div className="h-10 w-10 rounded-full gradient-bg flex items-center justify-center">
                     <span className="text-primary-foreground font-bold">KK</span>
                   </div>
-                  <span className="font-bold text-xl gradient-text">Nốc Nốc</span>
+                  <span className="font-bold text-xl gradient-text">KnockKnock</span>
                 </Link>
 
                 <nav className="flex-1 space-y-1">

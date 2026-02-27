@@ -8,3 +8,5 @@ export {
 export { Notification, INotification } from "./Notification";
 export { ChatMessage, IChatMessage, MessageRole } from "./ChatMessage";
 export { Wallet, IWallet, ITransaction, TransactionType } from "./Wallet";
+export { Favorite, IFavorite } from "./Favorite";
+export { AiUsage, IAiUsage } from "./AiUsage";

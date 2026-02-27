@@ -1,7 +1,9 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Home, Building2, Users, MessageCircle, User } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Building2, Users, MessageCircle, User, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const navItems = [
   { path: '/home', icon: Home, label: 'Trang chủ' },
@@ -13,6 +15,18 @@ const navItems = [
 
 export function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, signOut, loading } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success('Đã đăng xuất thành công');
+    navigate('/');
+  };
+
+  if (!isAuthenticated || loading) {
+    return null;
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
@@ -44,6 +58,14 @@ export function BottomNav() {
               </Link>
             );
           })}
+          <button
+            onClick={handleLogout}
+            className="relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors text-muted-foreground hover:text-foreground"
+            title="Đăng xuất"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Thoát</span>
+          </button>
         </div>
       </div>
     </nav>

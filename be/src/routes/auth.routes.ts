@@ -6,6 +6,9 @@ import { authMiddleware, AuthRequest } from "../middleware/auth.middleware";
 
 const router = Router();
 
+// In-memory OTP storage (key: email, value: { otp, expiresAt })
+const otpStore: Record<string, { otp: string; expiresAt: number }> = {};
+
 // POST /api/auth/register
 router.post("/register", async (req: Request, res: Response) => {
   try {
@@ -178,5 +181,154 @@ router.put(
     }
   },
 );
+
+// Helper function to generate OTP
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// POST /api/auth/send-otp
+router.post("/send-otp", async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: "Email is required" });
+      return;
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      res.status(404).json({ error: "User not found with this email" });
+      return;
+    }
+
+    // Generate OTP
+    const otp = generateOtp();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // Store OTP
+    otpStore[email.toLowerCase()] = { otp, expiresAt };
+
+    // In production, send OTP via email service (SendGrid, Nodemailer, etc.)
+    // For now, just log it
+    console.log(`OTP for ${email}: ${otp}`);
+
+    // Simulate sending email
+    setTimeout(() => {
+      console.log(`[Email sent] OTP: ${otp} to ${email}`);
+    }, 100);
+
+    res.json({
+      message: "OTP sent to your email",
+      // Remove this in production - only for testing
+      devOtp: process.env.NODE_ENV === "development" ? otp : undefined,
+    });
+  } catch (error) {
+    console.error("Send OTP error:", error);
+    res.status(500).json({ error: "Failed to send OTP" });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", async (req: Request, res: Response) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      res.status(400).json({ error: "Email, OTP, and new password are required" });
+      return;
+    }
+
+    // Validate OTP
+    const storedOtp = otpStore[email.toLowerCase()];
+    if (!storedOtp) {
+      res.status(400).json({ error: "OTP not found. Please request a new one" });
+      return;
+    }
+
+    if (storedOtp.otp !== otp) {
+      res.status(400).json({ error: "Invalid OTP" });
+      return;
+    }
+
+    if (Date.now() > storedOtp.expiresAt) {
+      delete otpStore[email.toLowerCase()];
+      res.status(400).json({ error: "OTP has expired" });
+      return;
+    }
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Delete OTP
+    delete otpStore[email.toLowerCase()];
+
+    res.json({ message: "Password reset successfully. You can now login." });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ error: "Failed to reset password" });
+  }
+});
+
+// POST /api/auth/change-password (for authenticated users)
+router.post("/change-password", authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: "Current password and new password are required" });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: "New password must be at least 6 characters" });
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      res.status(400).json({ error: "New password must be different from current password" });
+      return;
+    }
+
+    // Find user
+    const user = await User.findById(req.userId);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
 
 export default router;

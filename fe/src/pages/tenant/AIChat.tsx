@@ -1,76 +1,556 @@
-// src/pages/tenant/AIChat.tsx
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+/**
+ * AI Chat Screen — Tenant AI Chatbot (Smart Search)
+ *
+ * Integrates with Google Gemini 2.0 Flash via backend endpoint POST /api/ai/chat.
+ * Features:
+ *  - Vietnamese filter extraction (price, district, amenities)
+ *  - Room card display from real MongoDB results
+ *  - Chat message history (user / bot styled differently)
+ *  - Loading / typing animation while waiting for response
+ *  - Auto scroll-to-bottom
+ *  - Token balance display & enforcement
+ *  - Error handling with toast notifications
+ *  - Responsive design matching KnockKnock theme
+ */
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Send,
+  Bot,
+  User,
+  Sparkles,
+  ArrowLeft,
+  Coins,
+  AlertCircle,
+  Loader2,
+  MapPin,
+  DollarSign,
+  Home,
+  Check,
+  Zap,
+} from 'lucide-react';
+import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 
-type Msg = { who: 'user' | 'bot', text: string };
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'bot';
+  content: string;
+  timestamp: Date;
+  results?: any[];
+  filters?: {
+    intent: string;
+    max_price: number | null;
+    district: string | null;
+    amenities: string[];
+  };
+}
 
+// ---------------------------------------------------------------------------
+// Amenity labels for Vietnamese display
+// ---------------------------------------------------------------------------
+const AMENITY_LABELS: Record<string, string> = {
+  hasAirConditioner: 'Máy lạnh',
+  hasBed: 'Giường',
+  hasWardrobe: 'Tủ quần áo',
+  hasWaterHeater: 'Nóng lạnh',
+  hasKitchen: 'Bếp',
+  hasFridge: 'Tủ lạnh',
+  hasPrivateWashing: 'Máy giặt riêng',
+  hasSharedWashing: 'Máy giặt chung',
+  hasParking: 'Chỗ để xe',
+  hasElevator: 'Thang máy',
+  hasSecurityCamera: 'Camera an ninh',
+  hasFireSafety: 'PCCC',
+  hasPetFriendly: 'Thú cưng',
+  hasDryingArea: 'Sân phơi',
+  hasSharedOwner: 'Chung chủ',
+  isFullyFurnished: 'Nội thất đầy đủ',
+};
+
+// ---------------------------------------------------------------------------
+// Helper: format price in VND
+// ---------------------------------------------------------------------------
+function formatPrice(price: number): string {
+  if (price >= 1_000_000) {
+    const millions = price / 1_000_000;
+    return `${millions % 1 === 0 ? millions : millions.toFixed(1)} triệu/tháng`;
+  }
+  if (price >= 1_000) {
+    return `${(price / 1_000).toFixed(0)}k/tháng`;
+  }
+  return `${price.toLocaleString('vi-VN')}đ/tháng`;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: get list of active amenities from room document
+// ---------------------------------------------------------------------------
+function getActiveAmenities(room: any): string[] {
+  return Object.entries(AMENITY_LABELS)
+    .filter(([key]) => room[key] === true)
+    .map(([, label]) => label);
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function TenantAIChat() {
-  const { aiTokens, useAiToken } = useAuth();
-  const [messages, setMessages] = useState<Msg[]>([
-    { who: 'bot', text: 'Xin chào! Tôi có thể đề xuất phòng giúp bạn. Mỗi tin nhắn tiêu tốn 1 token.' }
-  ]);
-  const [text, setText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [rooms, setRooms] = useState<any[]>([]);
+  const navigate = useNavigate();
+  const { aiTokens, setAiTokens, refreshAiTokens, isAuthenticated, loading: authLoading } = useAuth();
 
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'bot',
+      content:
+        'Xin chào! Tôi là **KnockBot** — trợ lý AI tìm phòng trọ.\n\nHãy mô tả phòng bạn cần, ví dụ:\n•  "Tìm phòng dưới 3 triệu ở Hòa Lạc"\n•  "Phòng có máy lạnh, gần Cầu Giấy"\n•  "Phòng trọ full nội thất quận 1"\n\nMỗi tin nhắn sẽ sử dụng 1 token.',
+      timestamp: new Date(),
+    },
+  ]);
+  const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Refs
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Redirect if not authenticated
   useEffect(() => {
-    fetchRooms();
+    if (!authLoading && !isAuthenticated) {
+      toast.error('Vui lòng đăng nhập để sử dụng AI Chat');
+      navigate('/auth/login');
+    }
+  }, [isAuthenticated, authLoading, navigate]);
+
+  // Fetch real token balance on mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshAiTokens();
+    }
+  }, [isAuthenticated]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const fetchRooms = async () => {
+  // ---------------------------------------------------------------------------
+  // Send message handler
+  // ---------------------------------------------------------------------------
+  const handleSend = async () => {
+    const trimmed = inputText.trim();
+    if (!trimmed || isLoading) return;
+
+    // Check token balance (client-side — backend also validates)
+    if (aiTokens <= 0) {
+      toast.error('Bạn đã hết token AI. Vui lòng nạp thêm để tiếp tục.');
+      return;
+    }
+
+    // Add user message immediately
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: trimmed,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInputText('');
+    setError(null);
+    setIsLoading(true);
+
     try {
-      const { data, error } = await apiClient.getRooms({ status: 'active' });
-      if (error) {
-        throw new Error(error);
+      const { data, error: apiError } = await apiClient.sendAiMessage(trimmed);
+
+      if (apiError) {
+        // Handle payment-required error specifically
+        if (apiError.includes('payment') || apiError.includes('token')) {
+          setError('Bạn đã hết token AI. Vui lòng nạp thêm.');
+          toast.error('Hết token AI');
+        } else {
+          setError(apiError);
+          toast.error('Lỗi: ' + apiError);
+        }
+
+        // Add error message to chat
+        const errMsg: ChatMessage = {
+          id: `err-${Date.now()}`,
+          role: 'bot',
+          content: ' Xin lỗi, có lỗi xảy ra. Vui lòng thử lại sau.',
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+        return;
       }
-      setRooms(data?.rooms || []);
-    } catch (error) {
-      console.error('Error fetching rooms:', error);
-      toast.error('Không thể tải danh sách phòng');
+
+      if (data) {
+        // Update token balance from server response
+        if (typeof data.tokensRemaining === 'number') {
+          setAiTokens(data.tokensRemaining);
+        }
+
+        // Add bot reply with room results
+        const botMsg: ChatMessage = {
+          id: `bot-${Date.now()}`,
+          role: 'bot',
+          content: data.reply,
+          timestamp: new Date(),
+          results: data.results || [],
+          filters: data.filters || undefined,
+        };
+        setMessages((prev) => [...prev, botMsg]);
+      }
+    } catch (err) {
+      console.error('AI Chat error:', err);
+      toast.error('Không thể kết nối với AI. Vui lòng thử lại.');
+      const errMsg: ChatMessage = {
+        id: `err-${Date.now()}`,
+        role: 'bot',
+        content: ' Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsLoading(false);
+      // Refocus input
+      inputRef.current?.focus();
     }
   };
 
-  const send = async () => {
-    if (!text.trim()) return;
-    if (aiTokens <= 0) { alert('Hết token. Vui lòng nạp thêm.'); return; }
-    const ok = useAiToken();
-    if (!ok) { alert('Hết token.'); return; }
-    setMessages((m) => [...m, { who: 'user', text }]);
-    setText('');
-    setLoading(true);
-    // mock response delay
-    setTimeout(() => {
-      // simple mock: suggest rooms in Thạch Hòa first
-      const suggestions = rooms.filter(r => r.district?.includes('Thạch Hòa')).slice(0, 3);
-      const reply = suggestions.length
-        ? `Gợi ý phòng tại Hòa Lạc:\n- ${suggestions.map(s => `${s.title} — ${(s.price/1000000).toFixed(1)}tr (${s.address})`).join('\n- ')}`
-        : 'Mình chưa tìm thấy phòng phù hợp ở Hòa Lạc. Thử điều chỉnh bộ lọc.';
-      setMessages((m) => [...m, { who: 'bot', text: reply }]);
-      setLoading(false);
-    }, 800);
+  // Handle Enter key
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
-  return (
-    <div className="container py-6 max-w-3xl">
-      <h1 className="text-2xl font-bold mb-4">AI Chat — Gợi ý phòng</h1>
-      <div className="mb-2 text-sm text-muted-foreground">Tokens còn lại: <strong>{aiTokens}</strong></div>
-      <div className="space-y-3 mb-4">
-        {messages.map((m, i) => (
-          <div key={i} className={`p-3 rounded-xl ${m.who === 'bot' ? 'bg-card' : 'bg-primary/10 self-end'}`}>
-            <div className={`${m.who === 'bot' ? 'text-muted-foreground' : ''}`}>{m.text}</div>
-          </div>
-        ))}
-      </div>
+  // ---------------------------------------------------------------------------
+  // Format message content (basic markdown-like rendering)
+  // ---------------------------------------------------------------------------
+  const formatContent = (text: string) => {
+    // Split by newlines and process each line
+    return text.split('\n').map((line, i) => {
+      // Bold: **text**
+      const boldProcessed = line.replace(
+        /\*\*(.*?)\*\*/g,
+        '<strong>$1</strong>'
+      );
+      // Bullet points
+      const bulletProcessed = boldProcessed.replace(
+        /^[•\-]\s/,
+        '<span class="text-primary mr-1">•</span>'
+      );
 
-      <div className="flex gap-2">
-        <Input placeholder={aiTokens > 0 ? 'Gõ yêu cầu...' : 'Hết token'} value={text} onChange={(e) => setText(e.target.value)} disabled={aiTokens <= 0 || loading} />
-        <Button onClick={send} disabled={aiTokens <= 0 || loading}>{loading ? 'Đang...' : 'Gửi'}</Button>
+      return (
+        <span
+          key={i}
+          dangerouslySetInnerHTML={{ __html: bulletProcessed }}
+          className="block"
+        />
+      );
+    });
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="container py-12 text-center">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="container max-w-3xl py-4 flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-5rem)]">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between mb-4 flex-shrink-0"
+        >
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-muted rounded-full transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                <Bot className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold">KnockBot AI</h1>
+                <p className="text-xs text-muted-foreground">Trợ lý tìm phòng & bạn cùng phòng</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Token Balance Badge + Recharge Button */}
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={aiTokens > 5 ? 'default' : aiTokens > 0 ? 'secondary' : 'destructive'}
+              className="flex items-center gap-1 px-3 py-1"
+            >
+              <Coins className="h-3.5 w-3.5" />
+              <span>{aiTokens} token{aiTokens !== 1 ? 's' : ''}</span>
+            </Badge>
+            <Button
+              onClick={() => navigate('/tenant/ai-payment')}
+              size="sm"
+              className="rounded-full px-4 bg-accent text-white hover:bg-accent/90"
+            >
+              <Zap className="h-3.5 w-3.5 mr-1" />
+              Nạp xu
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Chat Messages */}
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin mb-4">
+          <AnimatePresence initial={false}>
+            {messages.map((msg) => (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                {/* Bot avatar */}
+                {msg.role === 'bot' && (
+                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mt-1">
+                    <Bot className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                )}
+
+                {/* Message bubble */}
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground rounded-br-md'
+                      : 'glass-card rounded-bl-md'
+                  }`}
+                >
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {msg.role === 'bot' ? formatContent(msg.content) : msg.content}
+                  </div>
+
+                  {/* Room Result Cards */}
+                  {msg.results && msg.results.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {msg.results.map((room: any) => (
+                        <Link
+                          key={room._id}
+                          to={`/rooms/${room._id}`}
+                          className="block"
+                        >
+                          <Card className="hover:shadow-md transition-shadow cursor-pointer border-border/60">
+                            <CardContent className="p-3">
+                              {/* Room image + info */}
+                              <div className="flex gap-3">
+                                {room.images?.[0] && (
+                                  <img
+                                    src={room.images[0]}
+                                    alt={room.title}
+                                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-semibold text-sm line-clamp-1">
+                                    {room.title}
+                                  </h4>
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                                    <MapPin className="h-3 w-3 flex-shrink-0" />
+                                    <span className="line-clamp-1">
+                                      {room.district || room.address}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <DollarSign className="h-3 w-3 text-primary flex-shrink-0" />
+                                    <span className="text-sm font-bold text-primary">
+                                      {formatPrice(room.price)}
+                                    </span>
+                                  </div>
+                                  {room.area && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                      <Home className="h-3 w-3 flex-shrink-0" />
+                                      <span>{room.area} m²</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Amenity badges */}
+                              {(() => {
+                                const amenities = getActiveAmenities(room);
+                                return amenities.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {amenities.slice(0, 5).map((label) => (
+                                      <Badge
+                                        key={label}
+                                        variant="secondary"
+                                        className="text-[10px] px-1.5 py-0"
+                                      >
+                                        <Check className="h-2.5 w-2.5 mr-0.5" />
+                                        {label}
+                                      </Badge>
+                                    ))}
+                                    {amenities.length > 5 && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] px-1.5 py-0"
+                                      >
+                                        +{amenities.length - 5}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ) : null;
+                              })()}
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Timestamp */}
+                  <p
+                    className={`text-[10px] mt-1 ${
+                      msg.role === 'user' ? 'text-primary-foreground/60' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {msg.timestamp.toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+
+                {/* User avatar */}
+                {msg.role === 'user' && (
+                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center mt-1">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Typing Indicator */}
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex gap-3 justify-start"
+            >
+              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mt-1">
+                <Bot className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <div className="glass-card rounded-2xl rounded-bl-md px-4 py-3">
+                <div className="flex items-center gap-1">
+                  <motion.span
+                    className="h-2 w-2 rounded-full bg-primary"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0 }}
+                  />
+                  <motion.span
+                    className="h-2 w-2 rounded-full bg-primary"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+                  />
+                  <motion.span
+                    className="h-2 w-2 rounded-full bg-primary"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Scroll anchor */}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Error Banner */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="flex items-center gap-2 p-3 mb-3 rounded-xl bg-destructive/10 text-destructive text-sm flex-shrink-0"
+          >
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto text-xs underline">
+              Đóng
+            </button>
+          </motion.div>
+        )}
+
+        {/* No Tokens Warning */}
+        {aiTokens <= 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="flex items-center gap-2 p-3 mb-3 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm flex-shrink-0"
+          >
+            <Coins className="h-4 w-4 flex-shrink-0" />
+            <span>Bạn đã hết token AI. Vui lòng liên hệ quản trị viên để nạp thêm.</span>
+          </motion.div>
+        )}
+
+        {/* Input Area */}
+        <div className="flex-shrink-0 flex items-center gap-2 glass-card rounded-2xl p-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              aiTokens > 0
+                ? 'Nhập câu hỏi... (Enter để gửi)'
+                : 'Hết token — không thể gửi tin nhắn'
+            }
+            disabled={isLoading || aiTokens <= 0}
+            className="flex-1 bg-transparent border-none outline-none px-3 py-2 text-sm placeholder:text-muted-foreground disabled:opacity-50"
+          />
+          <Button
+            size="icon"
+            className="h-10 w-10 rounded-xl flex-shrink-0"
+            onClick={handleSend}
+            disabled={isLoading || !inputText.trim() || aiTokens <= 0}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 }
 

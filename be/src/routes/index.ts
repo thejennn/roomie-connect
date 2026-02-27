@@ -6,6 +6,8 @@ import notificationsRoutes from "./notifications.routes";
 import walletRoutes from "./wallet.routes";
 import chatRoutes from "./chat.routes";
 import adminRoutes from "./admin.routes";
+import favoritesRoutes from "./favorites.routes";
+import aiRoutes from "./ai.routes";
 
 const router = Router();
 
@@ -26,5 +28,7 @@ router.use("/notifications", notificationsRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/chat", chatRoutes);
 router.use("/admin", adminRoutes);
+router.use("/favorites", favoritesRoutes);
+router.use("/ai", aiRoutes);
 
 export default router;

@@ -81,7 +81,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
             <div>
               <span className="font-bold text-lg">Admin Panel</span>
-              <p className="text-xs text-muted-foreground">Nốc Nốc</p>
+              <p className="text-xs text-muted-foreground">KnockKnock</p>
             </div>
           </div>
 
@@ -125,7 +125,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   </div>
                   <div>
                     <span className="font-bold">Admin Panel</span>
-                    <p className="text-xs text-muted-foreground">Nốc Nốc</p>
+                    <p className="text-xs text-muted-foreground">KnockKnock</p>
                   </div>
                 </div>
 

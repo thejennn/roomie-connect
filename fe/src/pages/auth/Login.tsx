@@ -17,7 +17,7 @@ const loginSchema = z.object({
 const roleConfig: Record<UserRole, { title: string; icon: React.ElementType; color: string }> = {
   tenant: { title: 'Người Tìm Trọ', icon: User, color: 'from-primary to-accent' },
   landlord: { title: 'Chủ Trọ', icon: Building2, color: 'from-emerald-500 to-teal-500' },
-  admin: { title: 'Quản Trị Viên', icon: Shield, color: 'from-rose-500 to-pink-500' },
+  admin: { title: 'Admin', icon: Shield, color: 'from-rose-500 to-pink-500' },
 };
 
 export default function Login() {
@@ -175,6 +175,14 @@ export default function Login() {
                 </button>
               </div>
               {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+              <div className="text-right">
+                <Link 
+                  to="/auth/forgot-password" 
+                  className="text-xs text-primary hover:underline"
+                >
+                  Quên mật khẩu?
+                </Link>
+              </div>
             </div>
 
             <Button 

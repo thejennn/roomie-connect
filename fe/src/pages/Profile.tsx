@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   Settings, 
@@ -9,23 +10,89 @@ import {
   ChevronRight,
   Bell,
   Shield,
-  Star
+  Star,
+  Lock,
+  Edit2
 } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-const MENU_ITEMS = [
-  { icon: Heart, label: 'Phòng đã lưu', badge: '3' },
-  { icon: Clock, label: 'Lịch sử xem' },
-  { icon: Bell, label: 'Thông báo', badge: '2' },
-  { icon: Shield, label: 'Quyền riêng tư' },
-  { icon: Star, label: 'Đánh giá ứng dụng' },
-  { icon: HelpCircle, label: 'Trợ giúp & Hỗ trợ' },
-  { icon: Settings, label: 'Cài đặt' },
-];
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function Profile() {
+  const navigate = useNavigate();
+  const { user, isAuthenticated, signOut, loading, role } = useAuth();
+
+  const MENU_ITEMS = [
+    { icon: Heart, label: 'Phòng đã lưu', badge: '3', action: () => navigate('/saved-rooms') },
+    { icon: Clock, label: 'Lịch sử xem', action: () => navigate('/history') },
+    { icon: Bell, label: 'Thông báo', badge: '2', action: () => navigate('/notifications') },
+    { icon: Shield, label: 'Quyền riêng tư', action: () => navigate('/privacy') },
+    { icon: Lock, label: 'Đổi Mật Khẩu', action: () => navigate('/auth/change-password') },
+    { icon: Star, label: 'Đánh giá ứng dụng', action: () => {} },
+    { icon: HelpCircle, label: 'Trợ giúp & Hỗ trợ', action: () => navigate('/support') },
+  ];
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success('Đã đăng xuất thành công');
+    navigate('/');
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="container py-6 flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-accent mx-auto mb-4 animate-spin" />
+            <p className="text-muted-foreground">Đang tải...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Layout>
+        <div className="container py-6 space-y-6">
+          {/* Not Logged In Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-3xl p-8 text-center"
+          >
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-4">
+              <User className="h-10 w-10 text-primary-foreground" />
+            </div>
+
+            <h2 className="text-2xl font-bold mb-2">Chào Mừng</h2>
+            <p className="text-muted-foreground mb-6">
+              Đăng nhập hoặc đăng ký để bắt đầu tìm kiếm phòng trọ lý tưởng
+            </p>
+
+            <div className="flex gap-3 flex-col sm:flex-row">
+              <Button 
+                className="flex-1 rounded-full h-11"
+                onClick={() => navigate('/auth/login')}
+              >
+                Đăng Nhập
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1 rounded-full h-11"
+                onClick={() => navigate('/auth/register')}
+              >
+                Đăng Ký
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="container py-6 space-y-6">
@@ -40,25 +107,30 @@ export default function Profile() {
               <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                 <User className="h-10 w-10 text-primary-foreground" />
               </div>
-              <button className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-card border-2 border-background flex items-center justify-center shadow-card">
-                <Settings className="h-3.5 w-3.5" />
+              <button 
+                onClick={() => navigate('/edit-profile')}
+                className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-card border-2 border-background flex items-center justify-center shadow-card hover:bg-muted transition-colors"
+              >
+                <Edit2 className="h-3.5 w-3.5" />
               </button>
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold">Người dùng</h2>
-              <p className="text-muted-foreground text-sm">Chưa đăng nhập</p>
-              <Badge variant="secondary" className="mt-2">
-                Tài khoản miễn phí
+              <h2 className="text-xl font-bold">{user?.fullName || user?.email || 'Người dùng'}</h2>
+              <p className="text-muted-foreground text-sm">{user?.email}</p>
+              <Badge variant={role === 'admin' ? 'destructive' : role === 'landlord' ? 'default' : 'secondary'} className="mt-2">
+                {role === 'admin' ? 'Quản trị viên' : role === 'landlord' ? 'Chủ trọ' : 'Người tìm trọ'}
               </Badge>
             </div>
           </div>
 
           <div className="mt-6 flex gap-3">
-            <Button className="flex-1 rounded-full">
-              Đăng nhập
-            </Button>
-            <Button variant="outline" className="flex-1 rounded-full">
-              Đăng ký
+            <Button 
+              variant="outline" 
+              className="flex-1 rounded-full"
+              onClick={() => navigate('/edit-profile')}
+            >
+              <Edit2 className="h-4 w-4 mr-2" />
+              Chỉnh Sửa Hồ Sơ
             </Button>
           </div>
         </motion.div>
@@ -101,9 +173,10 @@ export default function Profile() {
           transition={{ delay: 0.25 }}
           className="glass-card rounded-3xl overflow-hidden divide-y divide-border/50"
         >
-          {MENU_ITEMS.map((item, index) => (
+          {MENU_ITEMS.map((item) => (
             <button
               key={item.label}
+              onClick={item.action}
               className="w-full flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors"
             >
               <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
@@ -129,15 +202,16 @@ export default function Profile() {
           <Button
             variant="ghost"
             className="w-full rounded-2xl text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={handleLogout}
           >
             <LogOut className="h-5 w-5 mr-2" />
-            Đăng xuất
+            Đăng Xuất
           </Button>
         </motion.div>
 
         {/* Version */}
         <p className="text-center text-xs text-muted-foreground">
-          Nốc Nốc v1.0.0 • Made with ❤️ for students
+          KnockKnock v1.0.0 • Made with ❤️ for students
         </p>
       </div>
     </Layout>

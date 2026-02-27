@@ -92,6 +92,27 @@ class ApiClient {
     });
   }
 
+  async sendOtp(email: string) {
+    return this.request<{ message: string }>('/auth/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    return this.request<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, newPassword }),
+    });
+  }
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
   // Rooms endpoints
   async getRooms(params?: {
     district?: string;
@@ -289,6 +310,59 @@ class ApiClient {
     return this.request<{ message: string; user: any }>(`/admin/users/${id}/unban`, {
       method: 'PUT',
     });
+  }
+
+  // Favorites endpoints
+  async getFavorites() {
+    return this.request<{ favorites: any[] }>('/favorites');
+  }
+
+  async checkIsFavorited(roomId: string) {
+    return this.request<{ isFavorited: boolean }>(`/favorites/check/${roomId}`);
+  }
+
+  async addFavorite(roomId: string) {
+    return this.request<{ message: string; favorite: any }>(`/favorites/${roomId}`, {
+      method: 'POST',
+    });
+  }
+
+  async removeFavorite(roomId: string) {
+    return this.request<{ message: string }>(`/favorites/${roomId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // AI Chat endpoints
+  async sendAiMessage(message: string) {
+    return this.request<{
+      reply: string;
+      filters?: {
+        intent: 'search_room' | 'general_question';
+        max_price: number | null;
+        district: string | null;
+        amenities: string[];
+      };
+      results?: any[];
+      tokensRemaining: number;
+    }>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  async getAiHistory(page?: number, limit?: number) {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+    const query = params.toString();
+    return this.request<{ history: any[]; pagination: any }>(
+      `/ai/history${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getAiTokens() {
+    return this.request<{ tokens: number; maxTokens: number }>('/ai/tokens');
   }
 }
 

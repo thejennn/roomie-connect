@@ -9,6 +9,11 @@ interface User {
   email: string;
   fullName?: string;
   avatarUrl?: string;
+  phone?: string;
+  university?: string;
+  workplace?: string;
+  bankName?: string;
+  bankAccount?: string;
   role?: UserRole;
   isVerified?: boolean;
   created_at?: string;
@@ -21,13 +26,17 @@ interface AuthContextType {
   role: UserRole | null;
   loading: boolean;
   walletBalance: number; // for landlords (mock)
-  aiTokens: number; // for tenants (mock)
+  aiTokens: number; // for tenants
+  isAuthenticated: boolean; // New convenience flag
   signUp: (email: string, password: string, role?: UserRole, metadata?: Record<string, unknown>) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ error: Error | null }>;
   deductWallet: (amount: number) => boolean;
   topUpWallet: (amount: number) => void;
   useAiToken: () => boolean;
+  setAiTokens: React.Dispatch<React.SetStateAction<number>>;
+  refreshAiTokens: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,6 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(data.user);
           setSession(token);
           setRole(data.user.role as UserRole);
+          // Load AI token balance from backend for tenants
+          if (data.user.role === 'tenant') {
+            try {
+              const tokenRes = await apiClient.getAiTokens();
+              if (tokenRes.data) setAiTokens(tokenRes.data.tokens);
+            } catch { /* ignore */ }
+          }
         } else {
           // Invalid token, clear it
           apiClient.setToken(null);
@@ -172,6 +188,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(data.token);
         setUser(data.user);
         setRole(data.user.role as UserRole);
+        // Load AI token balance for tenants after login
+        if (data.user.role === 'tenant') {
+          try {
+            const tokenRes = await apiClient.getAiTokens();
+            if (tokenRes.data) setAiTokens(tokenRes.data.tokens);
+          } catch { /* ignore */ }
+        }
       }
 
       return { error: null };
@@ -200,6 +223,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAiTokens(0);
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    // Demo users cannot change password (they don't have real credentials)
+    if (user && user.id?.toString().startsWith('demo')) {
+      return { error: new Error('Demo accounts cannot change password') };
+    }
+
+    try {
+      const { data, error } = await apiClient.changePassword(currentPassword, newPassword);
+
+      if (error) {
+        return { error: new Error(error) };
+      }
+
+      // Password changed successfully
+      return { error: null };
+    } catch (err: any) {
+      return { error: err };
+    }
+  };
+
   // Virtual economy helpers
   const deductWallet = (amount: number) => {
     if (walletBalance >= amount) {
@@ -221,20 +264,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
+  // Fetch real AI token balance from backend
+  const refreshAiTokens = async () => {
+    try {
+      const { data } = await apiClient.getAiTokens();
+      if (data) {
+        setAiTokens(data.tokens);
+      }
+    } catch (err) {
+      console.error('Failed to refresh AI tokens:', err);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       session,
       role,
       loading,
+      isAuthenticated: !!user && !!role,
       walletBalance,
       aiTokens,
       signUp,
       signIn,
       signOut,
+      changePassword,
       deductWallet,
       topUpWallet,
-      useAiToken
+      useAiToken,
+      setAiTokens,
+      refreshAiTokens,
     }}>
       {children}
     </AuthContext.Provider>

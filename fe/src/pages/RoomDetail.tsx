@@ -21,13 +21,15 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Share2,
+  Star,
+  Loader2,
 } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { mapApiRoomToUiRoom } from "@/utils/mappers";
 
@@ -45,15 +47,24 @@ const AMENITY_ICONS: Record<string, React.ReactNode> = {
 export default function RoomDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated, role, loading: authLoading } = useAuth();
+  
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentImage, setCurrentImage] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
       fetchRoom();
+      checkIfSaved();
     }
   }, [id]);
 
@@ -71,6 +82,77 @@ export default function RoomDetail() {
       toast.error("Không thể tải thông tin phòng");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkIfSaved = async () => {
+    if (!isAuthenticated || !id) return;
+    
+    try {
+      const { data } = await apiClient.checkIsFavorited(id);
+      if (data?.isFavorited) {
+        setSaved(true);
+      }
+    } catch (error) {
+      console.error("Error checking favorite status:", error);
+    }
+  };
+
+  const handleSaveRoom = async () => {
+    // Redirect to login if not authenticated
+    if (!isAuthenticated) {
+      toast.error('Vui lòng đăng nhập để lưu phòng');
+      navigate('/auth/login');
+      return;
+    }
+
+    // Only allow tenants to save rooms
+    if (role !== 'tenant') {
+      toast.error('Chỉ người tìm trọ mới có thể lưu phòng');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (saved) {
+        // Remove from favorites
+        const { error } = await apiClient.removeFavorite(id!);
+        if (error) {
+          toast.error('Lỗi: ' + error);
+          return;
+        }
+        setSaved(false);
+        toast.success('Đã xóa phòng khỏi danh sách yêu thích');
+      } else {
+        // Add to favorites
+        const { error } = await apiClient.addFavorite(id!);
+        if (error) {
+          if (error.includes('already')) {
+            setSaved(true);
+            toast.success('Phòng này đã có trong danh sách yêu thích', {
+              action: {
+                label: 'Xem danh sách',
+                onClick: () => navigate('/saved-rooms')
+              }
+            });
+          } else {
+            toast.error('Lỗi: ' + error);
+          }
+          return;
+        }
+        setSaved(true);
+        toast.success('Đã lưu phòng vào danh sách yêu thích', {
+          action: {
+            label: 'Xem danh sách',
+            onClick: () => navigate('/saved-rooms')
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error saving room:', error);
+      toast.error('Không thể lưu phòng');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -116,6 +198,102 @@ export default function RoomDetail() {
 
   return (
     <Layout>
+      {/* Rating Dialog */}
+      {showRatingDialog && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setShowRatingDialog(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-background rounded-2xl p-6 max-w-md w-full shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Đánh giá phòng</h2>
+              <button
+                onClick={() => setShowRatingDialog(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Star Rating */}
+              <div className="flex justify-center gap-2 py-4">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setRating(star)}
+                    onMouseEnter={() => setHoverRating(star)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    className="transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className={cn(
+                        "h-8 w-8",
+                        (hoverRating || rating) >= star
+                          ? "fill-accent text-accent"
+                          : "text-muted-foreground",
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              {/* Comment */}
+              <textarea
+                placeholder="Chia sẻ nhận xét của bạn về phòng này (tùy chọn)"
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                className="w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                rows={4}
+              />
+
+              {/* Submit Button */}
+              <Button
+                onClick={async () => {
+                  if (rating === 0) {
+                    toast.error("Vui lòng chọn mức đánh giá");
+                    return;
+                  }
+                  
+                  setIsSubmittingRating(true);
+                  try {
+                    // TODO: Implement API call to submit rating
+                    // await apiClient.rateRoom(id, { rating, comment: ratingComment });
+                    toast.success("Cảm ơn bạn đã đánh giá phòng!");
+                    setShowRatingDialog(false);
+                    setRating(0);
+                    setRatingComment("");
+                  } catch (error) {
+                    toast.error("Không thể gửi đánh giá");
+                  } finally {
+                    setIsSubmittingRating(false);
+                  }
+                }}
+                className="w-full rounded-full"
+                disabled={isSubmittingRating || rating === 0}
+              >
+                {isSubmittingRating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Đang gửi...
+                  </>
+                ) : (
+                  "Gửi đánh giá"
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
       {/* Lightbox */}
       {showLightbox && (
         <motion.div
@@ -380,15 +558,20 @@ export default function RoomDetail() {
                     "flex-1 rounded-full",
                     saved && "text-destructive",
                   )}
-                  onClick={() => setSaved(!saved)}
+                  onClick={handleSaveRoom}
+                  disabled={isSaving || authLoading}
                 >
-                  <Heart
-                    className={cn("h-4 w-4 mr-2", saved && "fill-current")}
-                  />{" "}
-                  Lưu tin
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Heart
+                      className={cn("h-4 w-4 mr-2", saved && "fill-current")}
+                    />
+                  )}
+                  {isSaving ? "Đang lưu..." : "Lưu phòng"}
                 </Button>
-                <Button variant="ghost" className="flex-1 rounded-full">
-                  <Share2 className="h-4 w-4 mr-2" /> Chia sẻ
+                <Button variant="ghost" className="flex-1 rounded-full" onClick={() => setShowRatingDialog(true)}>
+                  <Star className="h-4 w-4 mr-2" /> Đánh giá
                 </Button>
               </div>
             </div>

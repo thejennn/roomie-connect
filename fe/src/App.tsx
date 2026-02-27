@@ -9,15 +9,20 @@ import Home from "./pages/Home";
 import FindRoom from "./pages/FindRoom";
 import FindRoommateChoice from "./pages/FindRoommateChoice";
 import RoomDetail from "./pages/RoomDetail";
+import SavedRooms from "./pages/SavedRooms";
 import Quiz from "./pages/Quiz";
 import Matches from "./pages/Matches";
 import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/auth/Login";
 import RegisterPage from "./pages/auth/Register";
+import ForgotPasswordPage from "./pages/auth/ForgotPassword";
+import ChangePasswordPage from "./pages/auth/ChangePassword";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import TenantAIChat from "./pages/tenant/AIChat";
+import TenantAIPayment from "./pages/tenant/AIPayment";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminRooms from "./pages/admin/Rooms";
 import AdminUsers from "./pages/admin/Users";
@@ -57,11 +62,14 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/register" element={<RegisterPage />} />
+            <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/auth/change-password" element={<ChangePasswordPage />} />
 
             <Route path="/home" element={<Home />} />
             <Route path="/find-room" element={<FindRoom />} />
             <Route path="/find-roommate" element={<FindRoommateChoice />} />
             <Route path="/rooms/:id" element={<RoomDetail />} />
+            <Route path="/saved-rooms" element={<SavedRooms />} />
 
             {/* Tenant routes */}
             <Route
@@ -69,6 +77,14 @@ const App = () => (
               element={
                 <ProtectedRoute role="tenant">
                   <TenantAIChat />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tenant/ai-payment"
+              element={
+                <ProtectedRoute role="tenant">
+                  <TenantAIPayment />
                 </ProtectedRoute>
               }
             />
@@ -167,6 +183,14 @@ const App = () => (
             <Route path="/matches" element={<Matches />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/profile" element={<Profile />} />
+            <Route
+              path="/edit-profile"
+              element={
+                <ProtectedRoute>
+                  <EditProfile />
+                </ProtectedRoute>
+              }
+            />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
