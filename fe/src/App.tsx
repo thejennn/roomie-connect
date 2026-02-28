@@ -26,6 +26,9 @@ import TenantAIPayment from "./pages/tenant/AIPayment";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminRooms from "./pages/admin/Rooms";
 import AdminUsers from "./pages/admin/Users";
+import AdminReports from "./pages/admin/Reports";
+import AdminTransactions from "./pages/admin/Transactions";
+import AdminSettings from "./pages/admin/Settings";
 import LandlordDashboard from "./pages/landlord/Dashboard";
 import LandlordPosts from "./pages/landlord/Posts";
 import LandlordWallet from "./pages/landlord/Wallet";
@@ -174,6 +177,30 @@ const App = () => (
               element={
                 <ProtectedRoute role="admin">
                   <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/reports"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/transactions"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminTransactions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/settings"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminSettings />
                 </ProtectedRoute>
               }
             />
