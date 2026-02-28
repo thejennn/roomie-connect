@@ -156,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Call backend API to register
     try {
-      const fullName = metadata?.fullName as string || email.split('@')[0];
+      const fullName = (metadata?.full_name as string) || (metadata?.fullName as string) || email.split('@')[0];
       const { data, error } = await apiClient.register(email, password, fullName, roleArg);
 
       if (error) {
