@@ -34,6 +34,8 @@ import LandlordPosts from "./pages/landlord/Posts";
 import LandlordWallet from "./pages/landlord/Wallet";
 import LandlordProfile from "./pages/landlord/Profile";
 import CreatePost from "./pages/landlord/CreatePost";
+import LandlordSubscription from "./pages/landlord/Subscription";
+import ContractManagement from "./pages/landlord/ContractManagement";
 
 
 const queryClient = new QueryClient();
@@ -122,6 +124,22 @@ const App = () => (
               element={
                 <ProtectedRoute role="landlord">
                   <LandlordWallet />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/landlord/subscription"
+              element={
+                <ProtectedRoute role="landlord">
+                  <LandlordSubscription />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/landlord/contracts"
+              element={
+                <ProtectedRoute role="landlord">
+                  <ContractManagement />
                 </ProtectedRoute>
               }
             />
