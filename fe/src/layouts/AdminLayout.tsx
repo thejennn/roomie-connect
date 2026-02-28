@@ -1,12 +1,16 @@
 import React from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Bell, Home, FileText, Users, AlertCircle, Settings, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
+  const handleLogout = async () => {
+    await signOut();
+    toast.success('Đã đăng xuất thành công');
     navigate('/');
   };
   return (

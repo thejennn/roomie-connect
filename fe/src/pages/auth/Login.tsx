@@ -94,6 +94,19 @@ export default function Login() {
     }
   };
 
+  const demoQuick = async (email: string) => {
+    setIsLoading(true);
+    const { error } = await signIn(email, 'demo123456');
+    await new Promise((r) => setTimeout(r, 100));
+    setIsLoading(false);
+
+    if (error) {
+      toast.error('Lỗi đăng nhập: ' + error.message);
+    } else {
+      toast.success('Đăng nhập thành công!');
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
