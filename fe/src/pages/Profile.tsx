@@ -64,7 +64,7 @@ export default function Profile() {
     { icon: Bell, label: 'Thông báo', badge: '2', action: () => navigate('/notifications') },
     { icon: Shield, label: 'Quyền riêng tư', action: () => navigate('/privacy') },
     { icon: Lock, label: 'Đổi Mật Khẩu', action: () => navigate('/auth/change-password') },
-    { icon: Star, label: 'Đánh giá ứng dụng', action: () => {} },
+    { icon: Star, label: 'Đánh giá ứng dụng', action: () => navigate('/app-rating') },
     { icon: HelpCircle, label: 'Trợ giúp & Hỗ trợ', action: () => navigate('/support') },
   ];
 
