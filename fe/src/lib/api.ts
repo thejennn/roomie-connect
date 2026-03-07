@@ -337,10 +337,11 @@ class ApiClient {
   async sendAiMessage(message: string) {
     return this.request<{
       success: boolean;
-      data: string;                          // LLM reply text
+      data: string;                              // LLM reply text
       error?: string;
-      rooms?: Record<string, unknown>[];     // populated on room-search queries
-      tokensRemaining?: number;              // updated balance after deduction
+      rooms?: Record<string, unknown>[];         // populated on room-search queries
+      roommates?: Record<string, unknown>[];     // populated on roommate-search queries
+      tokensRemaining?: number;                  // updated balance after deduction
     }>('/ai/chat', {
       method: 'POST',
       body: JSON.stringify({ message }),

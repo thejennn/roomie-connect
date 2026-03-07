@@ -3,11 +3,15 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { User } from "../models/User";
 import { AiUsage } from "../models/AiUsage";
 import { IRoom } from "../models/Room";
+import { IRoommateProfile } from "../models/RoommateProfile";
 import {
   detectSearchIntent,
   queryRooms,
   buildRoomPrompt,
   buildGeneralPrompt,
+  detectRoommateIntent,
+  queryRoommates,
+  buildRoommatePrompt,
   callLocalLLM,
 } from "../services/ai.service";
 
@@ -53,14 +57,27 @@ export async function handleChat(
       return;
     }
 
-    // --- Step 1: Detect intent ---
-    const filters = detectSearchIntent(sanitized);
-    let reply: string;
+    // --- Step 1: Detect intent (roommate takes priority over room search) ---
+    const roommateFilters = detectRoommateIntent(sanitized);
+    const roomFilters = roommateFilters ? null : detectSearchIntent(sanitized);
+    let reply = '';
     let rooms: IRoom[] = [];
+    let roommates: IRoommateProfile[] = [];
 
-    if (filters) {
+    if (roommateFilters) {
+      // --- Roommate search flow ---
+      roommates = await queryRoommates(roommateFilters);
+      if (roommates.length === 0) {
+        reply =
+          "Rất tiếc, mình chưa tìm thấy ai phù hợp với yêu cầu của bạn. " +
+          "Bạn thử điều chỉnh khu vực, ngân sách hoặc yêu cầu lối sống nhé!";
+      } else {
+        const prompt = buildRoommatePrompt(roommates, sanitized);
+        reply = await callLocalLLM(prompt);
+      }
+    } else if (roomFilters) {
       // --- Step 2: Query real DB data (LLM must NOT be asked to invent rooms) ---
-      rooms = await queryRooms(filters);
+      rooms = await queryRooms(roomFilters);
 
       if (rooms.length === 0) {
         // No results — skip LLM entirely to prevent hallucinated listings
@@ -78,7 +95,19 @@ export async function handleChat(
       reply = await callLocalLLM(prompt);
     }
 
-    // --- Deduct 1 token (server-side is authoritative) ---
+    // Safeguard B: Validate reply before touching the DB.
+    // If reply is empty here it means a code path failed to set it;
+    // we must NOT deduct tokens or write an invalid AiUsage document.
+    if (!reply) {
+      console.error(`[AiChat] reply is empty after intent resolution — aborting save (userId=${userId})`);
+      res.status(500).json({
+        success: false,
+        error: "AI không trả lời được. Vui lòng thử lại.",
+      });
+      return;
+    }
+
+    // --- Deduct 1 token only after a successful AI response ---
     user.aiTokens.tokens = Math.max(0, user.aiTokens.tokens - 1);
     await user.save();
 
@@ -86,25 +115,38 @@ export async function handleChat(
     await AiUsage.create({
       userId,
       prompt: sanitized,
-      response: reply,
+      response: reply,       // guaranteed non-empty at this point
       tokensUsed: 1,
       roomResults: rooms.length > 0 ? rooms : undefined,
+      roommateResults: roommates.length > 0 ? roommates : undefined,
     });
+
+    console.log(`[AiChat] Success — userId=${userId} tokensRemaining=${user.aiTokens.tokens}`);
 
     res.json({
       success: true,
       data: reply,
-      rooms,                              // frontend renders clickable room cards
+      rooms,
+      roommates,
       tokensRemaining: user.aiTokens.tokens,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("AI Chat error:", msg);
+    console.error(`[AiChat] Unhandled error: ${msg}`);
 
-    if (msg.includes("ECONNREFUSED")) {
+    // Safeguard C: consistent error response shape { success, error }
+    if (msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND")) {
       res.status(503).json({
         success: false,
         error: "Dịch vụ AI đang offline. Vui lòng thử lại sau.",
+      });
+      return;
+    }
+
+    if (msg.includes("HTTP") || msg.includes("empty response") || msg.includes("invalid JSON")) {
+      res.status(502).json({
+        success: false,
+        error: "AI không trả lời được. Vui lòng thử lại.",
       });
       return;
     }

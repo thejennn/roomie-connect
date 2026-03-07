@@ -29,6 +29,8 @@ import {
   Home,
   Check,
   Zap,
+  Users,
+  BookOpen,
 } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -46,7 +48,8 @@ interface ChatMessage {
   role: 'user' | 'bot';
   content: string;
   timestamp: Date;
-  results?: any[];
+  results?: Record<string, unknown>[];      // room results
+  roommates?: Record<string, unknown>[];    // roommate profile results
   filters?: {
     intent: string;
     max_price: number | null;
@@ -105,7 +108,7 @@ const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'bot',
   content:
-    'Xin chào! Tôi là **KnockBot** — trợ lý AI tìm phòng trọ.\n\nHãy mô tả phòng bạn cần, ví dụ:\n•  "Tìm phòng dưới 3 triệu ở Hòa Lạc"\n•  "Phòng có máy lạnh"\n•  "Phòng trọ 2 phòng ngủ"\n\nMọi tin nhắn sẽ sử dụng 1 token.',
+    'Xin chào! Tôi là **KnockBot** — trợ lý AI của KnockKnock.\n\nTôi có thể giúp bạn:\n•  **Tìm phòng**: “Tìm phòng dưới 3 triệu ở Hòa Lạc”\n•  **Tìm bạn cùng phòng**: “Tìm bạn phòng nữ khu Tân Xã”\n•  Hỏi đáp chung về tiềm phòng trọ\n\nMọi tin nhắn sẻ sử dụng 1 token.',
   timestamp: new Date(),
 };
 
@@ -159,6 +162,8 @@ export default function TenantAIChat() {
           timestamp: new Date(item.createdAt as string),
           // Restore room cards that were returned with this message
           results: Array.isArray(item.roomResults) ? item.roomResults : [],
+          // Restore roommate cards
+          roommates: Array.isArray(item.roommateResults) ? item.roommateResults : [],
         });
       }
 
@@ -256,6 +261,8 @@ export default function TenantAIChat() {
           timestamp: new Date(),
           // Room cards with links rendered by the existing room-card JSX below
           results: responseBody.rooms ?? [],
+          // Roommate profile cards
+          roommates: responseBody.roommates ?? [],
         };
         setMessages((prev) => [...prev, botMsg]);
       }
@@ -475,6 +482,89 @@ export default function TenantAIChat() {
                           </Card>
                         </Link>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Roommate Profile Cards */}
+                  {msg.roommates && msg.roommates.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {msg.roommates.map((profile: Record<string, unknown>) => {
+                        const userObj = profile.userId as Record<string, unknown> | null;
+                        const name = (userObj?.fullName as string) ?? 'Ẩn danh';
+                        const avatar = userObj?.avatarUrl as string | undefined;
+                        const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+                        const budgetMin = profile.budgetMin as number | undefined;
+                        const budgetMax = profile.budgetMax as number | undefined;
+                        const budget =
+                          budgetMin && budgetMax
+                            ? `${(budgetMin / 1e6).toFixed(1)}–${(budgetMax / 1e6).toFixed(1)} triệu/tháng`
+                            : budgetMax
+                            ? `Dưới ${(budgetMax / 1e6).toFixed(1)} triệu/tháng`
+                            : null;
+                        const districts = (profile.preferredDistrict as string[]) ?? [];
+                        const bio = profile.bio as string | undefined;
+                        const prefs = (profile.preferences ?? {}) as Record<string, unknown>;
+                        return (
+                          <Link
+                            key={profile._id as string}
+                            to="/find-roommate"
+                            className="block"
+                          >
+                            <Card className="hover:shadow-md transition-shadow cursor-pointer border-border/60">
+                              <CardContent className="p-3">
+                                <div className="flex gap-3 items-start">
+                                  {/* Avatar */}
+                                  <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden bg-gradient-to-br from-accent to-primary flex items-center justify-center">
+                                    {avatar ? (
+                                      <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-primary-foreground font-bold text-sm">{initials}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-sm">{name}</h4>
+                                    {budget && (
+                                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                        <DollarSign className="h-3 w-3 flex-shrink-0" />
+                                        <span>{budget}</span>
+                                      </div>
+                                    )}
+                                    {districts.length > 0 && (
+                                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                                        <span className="line-clamp-1">{districts.join(', ')}</span>
+                                      </div>
+                                    )}
+                                    {bio && (
+                                      <div className="flex items-start gap-1 text-xs text-muted-foreground mt-0.5">
+                                        <BookOpen className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                                        <span className="line-clamp-2">{bio}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    <Users className="h-2.5 w-2.5 mr-0.5" />
+                                    Tìm bạn phòng
+                                  </Badge>
+                                  {prefs.smoking === 'no_smoke_ok' && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">Không hút thuốc</Badge>
+                                  )}
+                                  {prefs.pets === 'have_pet' && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">Nuôi thú cưng</Badge>
+                                  )}
+                                  {prefs.genderPreference && prefs.genderPreference !== 'no_preference' && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {prefs.genderPreference === 'male' ? 'Ưu tiên nam' : 'Ưu tiên nữ'}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
 

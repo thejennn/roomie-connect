@@ -1,5 +1,6 @@
 import http from "http";
 import { Room, IRoom } from "../models/Room";
+import { RoommateProfile, IRoommateProfile } from "../models/RoommateProfile";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -224,8 +225,280 @@ export function buildGeneralPrompt(userMessage: string): string {
     "Bạn là trợ lý AI tên KnockBot của nền tảng thuê phòng trọ KnockKnock.",
     "Trả lời bằng tiếng Việt, thân thiện, ngắn gọn.",
     "Nếu người dùng hỏi về phòng cụ thể, nhắc họ mô tả rõ khu vực hoặc ngân sách.",
+    "Nếu người dùng hỏi về bạn cùng phòng, nhắc họ mô tả khu vực, ngân sách hoặc yêu cầu lối sống.",
     "",
     `Người dùng: "${userMessage}"`,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Roommate Intent Detection
+// ---------------------------------------------------------------------------
+
+/** Keywords that signal the user is looking for a roommate (not a room). */
+const ROOMMATE_KEYWORDS =
+  /bạn cùng phòng|bạn phòng\b|roommate|ghép phòng|tìm người ở cùng|người ở cùng|cần người ở chung|tìm người ghép|ghép trọ|tìm bạn chung phòng/i;
+
+export interface RoommateFilters {
+  district: string | null;
+  maxBudget: number | null;
+  // Each array field uses MongoDB $in — matches any of the listed enum values
+  smoking: string[] | null;
+  pets: string[] | null;
+  genderPreference: string | null;
+  sleepTime: string | null;
+  socialHabit: string | null;
+  cookingHabit: string[] | null;
+  guests: string[] | null;
+  alcohol: string[] | null;
+  roomCleaning: string | null;
+}
+
+/**
+ * Map a Vietnamese natural-language roommate request to structured DB filters.
+ *
+ * Strategy: regex-only (no LLM round-trip) — deterministic and zero latency.
+ * Each preference field maps directly to the enum values stored in
+ * RoommateProfile.preferences (IQuizPreferences).
+ */
+export function detectRoommateIntent(message: string): RoommateFilters | null {
+  if (!ROOMMATE_KEYWORDS.test(message)) return null;
+
+  // ---- Location & budget ----
+  let district: string | null = null;
+  let maxBudget: number | null = null;
+
+  const dm = message.match(DISTRICT_REGEX);
+  if (dm) district = dm[1].trim();
+  if (!district) {
+    const lm = message.match(LOCATION_REGEX);
+    if (lm) district = lm[1].trim();
+  }
+  for (const { regex, multiplier } of PRICE_PATTERNS) {
+    const m = message.match(regex);
+    if (m) { maxBudget = parseFloat(m[1].replace(",", ".")) * multiplier; break; }
+  }
+
+  // ---- Smoking ----
+  // "không hút thuốc" / "no smoke" / "kỵ khói thuốc" → find non-smokers
+  // "hút thuốc" / "có hút thuốc" → find smokers
+  let smoking: string[] | null = null;
+  if (/không hút thuốc|no smoke|ghét thuốc|kỵ khói thuốc|không chịu được khói thuốc/i.test(message)) {
+    smoking = ["no_smoke_ok", "hate_smoke"];
+  } else if (/\bhút thuốc\b|có hút thuốc/i.test(message)) {
+    smoking = ["smoke_indoors", "smoke_outdoors"];
+  }
+
+  // ---- Pets ----
+  // "nuôi mèo/chó/thú cưng" / "có thú cưng" → find pet owners
+  // "thích thú cưng" → find pet-friendly profiles
+  // "không thú cưng" / "dị ứng" → find pet-free profiles
+  let pets: string[] | null = null;
+  if (/nuôi mèo|nuôi chó|nuôi thú cưng|có thú cưng|muốn nuôi thú/i.test(message)) {
+    pets = ["have_pet", "like_pet"];
+  } else if (/thích thú cưng|yêu động vật|ok với thú cưng/i.test(message)) {
+    pets = ["like_pet", "have_pet", "indifferent"];
+  } else if (/không thú cưng|không nuôi thú|kỵ thú cưng|dị ứng thú cưng/i.test(message)) {
+    pets = ["allergic"];
+  }
+
+  // ---- Sleep schedule ----
+  // "ngủ sớm" / "dậy sớm" → early | "thức khuya" / "ngủ muộn" → late
+  let sleepTime: string | null = null;
+  if (/ngủ sớm|đi ngủ sớm|dậy sớm|thức dậy sớm/i.test(message)) {
+    sleepTime = "early";
+  } else if (/ngủ muộn|thức khuya|dậy muộn|đêm khuya/i.test(message)) {
+    sleepTime = "late";
+  } else if (/linh hoạt giờ ngủ|giờ ngủ linh hoạt/i.test(message)) {
+    sleepTime = "flexible";
+  }
+
+  // ---- Social personality ----
+  let socialHabit: string | null = null;
+  if (/hướng ngoại|thích giao lưu|năng động|thích gặp gỡ|vui vẻ năng động/i.test(message)) {
+    socialHabit = "extrovert";
+  } else if (/hướng nội|ít nói|thích ở nhà|thích yên tĩnh|không thích ồn ào/i.test(message)) {
+    socialHabit = "introvert";
+  }
+
+  // ---- Cooking habits ----
+  let cookingHabit: string[] | null = null;
+  if (/thích nấu ăn|nấu ăn hàng ngày|hay nấu|thường nấu|nấu chung/i.test(message)) {
+    cookingHabit = ["cook_daily", "cook_together"];
+  } else if (/ăn ngoài|không nấu|lười nấu|hay ăn ngoài/i.test(message)) {
+    cookingHabit = ["eat_out"];
+  }
+
+  // ---- Guests ----
+  let guests: string[] | null = null;
+  if (/không muốn có khách|ít khách|không có khách|ghét có khách/i.test(message)) {
+    guests = ["rarely", "never"];
+  } else if (/thường có khách|hay có khách|nhiều khách/i.test(message)) {
+    guests = ["often", "sometimes"];
+  }
+
+  // ---- Alcohol ----
+  let alcohol: string[] | null = null;
+  if (/không uống rượu|không nhậu|không uống bia|tránh rượu bia/i.test(message)) {
+    alcohol = ["never_drink_home"];
+  } else if (/thỉnh thoảng uống|thỉnh thoảng nhậu|uống vừa phải/i.test(message)) {
+    alcohol = ["sometimes_drink", "never_drink_home"];
+  }
+
+  // ---- Room cleanliness ----
+  let roomCleaning: string | null = null;
+  if (/sạch sẽ gọn gàng|dọn hàng ngày|thích sạch sẽ|rất gọn gàng|ngăn nắp/i.test(message)) {
+    roomCleaning = "daily";
+  } else if (/dọn hàng tuần/i.test(message)) {
+    roomCleaning = "weekly";
+  }
+
+  // ---- Gender preference ----
+  let genderPreference: string | null = null;
+  if (/\bnam\b/i.test(message) && !/nữ/i.test(message)) genderPreference = "male";
+  if (/\bnữ\b/i.test(message)) genderPreference = "female";
+  if (/không quan trọng giới tính|bất kể giới tính/i.test(message)) genderPreference = "no_preference";
+
+  return {
+    district, maxBudget,
+    smoking, pets, genderPreference,
+    sleepTime, socialHabit, cookingHabit,
+    guests, alcohol, roomCleaning,
+  };
+}
+
+export async function queryRoommates(
+  filters: RoommateFilters,
+  limit = 5,
+): Promise<IRoommateProfile[]> {
+  const query: Record<string, unknown> = { isPublic: true };
+
+  if (filters.district) {
+    query.preferredDistrict = { $regex: filters.district, $options: "i" };
+  }
+  if (filters.maxBudget) {
+    query.budgetMin = { $lte: filters.maxBudget };
+  }
+
+  // Preference filters — use $in so multiple acceptable enum values can match
+  if (filters.smoking?.length) {
+    query["preferences.smoking"] = { $in: filters.smoking };
+  }
+  if (filters.pets?.length) {
+    query["preferences.pets"] = { $in: filters.pets };
+  }
+  if (filters.genderPreference) {
+    query["preferences.genderPreference"] = filters.genderPreference;
+  }
+  if (filters.sleepTime) {
+    query["preferences.sleepTime"] = filters.sleepTime;
+  }
+  if (filters.socialHabit) {
+    query["preferences.socialHabit"] = filters.socialHabit;
+  }
+  if (filters.cookingHabit?.length) {
+    query["preferences.cookingHabit"] = { $in: filters.cookingHabit };
+  }
+  if (filters.guests?.length) {
+    query["preferences.guests"] = { $in: filters.guests };
+  }
+  if (filters.alcohol?.length) {
+    query["preferences.alcohol"] = { $in: filters.alcohol };
+  }
+  if (filters.roomCleaning) {
+    query["preferences.roomCleaning"] = filters.roomCleaning;
+  }
+
+  return RoommateProfile.find(query)
+    .select("userId bio budgetMin budgetMax preferredDistrict university lookingFor preferences")
+    .populate("userId", "fullName avatarUrl")
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean<IRoommateProfile[]>();
+}
+
+/** Human-readable Vietnamese labels for quiz preference enum values. */
+const PREF_LABELS: Record<string, string> = {
+  // sleepTime
+  early: "ngủ sớm", late: "thức khuya", poor_sleep: "ngủ không ngon", flexible: "giờ ngủ linh hoạt",
+  // smoking
+  smoke_indoors: "hút thuốc trong nhà", smoke_outdoors: "hút thuốc ngoài trời",
+  no_smoke_ok: "không hút thuốc", hate_smoke: "ghét khói thuốc",
+  // pets
+  have_pet: "đang nuôi thú cưng", like_pet: "thích thú cưng",
+  allergic: "dị ứng thú cưng", indifferent: "không quan tâm thú cưng",
+  // socialHabit
+  extrovert: "hướng ngoại", introvert: "hướng nội",
+  ambivert: "vừa hướng ngoại vừa nội tâm", reserved: "trầm tính",
+  // cookingHabit
+  cook_daily: "nấu ăn hàng ngày", cook_simple: "nấu đơn giản",
+  eat_out: "hay ăn ngoài", cook_together: "thích nấu chung",
+  // guests
+  often: "thường có khách", sometimes: "thỉnh thoảng có khách",
+  rarely: "ít khi có khách", never: "không có khách",
+  // alcohol
+  often_drink: "hay uống rượu", sometimes_drink: "thỉnh thoảng uống",
+  never_drink_home: "không uống tại nhà", cant_drink: "không uống được rượu",
+  // roomCleaning
+  daily: "dọn phòng hàng ngày", weekly: "dọn hàng tuần",
+  when_messy: "dọn khi bừa",
+  // genderPreference
+  male: "tìm bạn nam", female: "tìm bạn nữ",
+  lgbtq: "LGBTQ+ friendly", no_preference: "không quan trọng giới tính",
+};
+
+function labelPref(value: string | undefined): string {
+  if (!value) return "";
+  return PREF_LABELS[value] ?? value;
+}
+
+export function buildRoommatePrompt(profiles: IRoommateProfile[], userMessage: string): string {
+  const list = profiles
+    .map((p, i) => {
+      const user = p.userId as unknown as Record<string, unknown>;
+      const name = (user?.fullName as string) ?? "Ẩn danh";
+      const budget =
+        p.budgetMin && p.budgetMax
+          ? `${(p.budgetMin / 1_000_000).toFixed(1)}–${(p.budgetMax / 1_000_000).toFixed(1)} triệu/tháng`
+          : p.budgetMax
+          ? `dưới ${(p.budgetMax / 1_000_000).toFixed(1)} triệu/tháng`
+          : "chưa xác định";
+      const districts = p.preferredDistrict?.join(", ") || "không giới hạn";
+
+      // Build a concise preference summary from stored quiz answers
+      const prefs = p.preferences ?? {};
+      const prefTags = [
+        labelPref(prefs.sleepTime),
+        labelPref(prefs.smoking),
+        labelPref(prefs.pets),
+        labelPref(prefs.socialHabit),
+        labelPref(prefs.cookingHabit),
+        labelPref(prefs.guests),
+        labelPref(prefs.alcohol),
+        labelPref(prefs.roomCleaning),
+        labelPref(prefs.genderPreference),
+      ].filter(Boolean).join(" · ");
+
+      const bio = p.bio ? ` | "${p.bio}"` : "";
+      const prefLine = prefTags ? ` | ${prefTags}` : "";
+      return `${i + 1}. ${name} | Ngân sách: ${budget} | Khu vực: ${districts}${prefLine}${bio}`;
+    })
+    .join("\n");
+
+  return [
+    "Bạn là trợ lý AI của nền tảng KnockKnock.",
+    "Dưới đây là danh sách người đang tìm bạn cùng phòng (từ cơ sở dữ liệu thật).",
+    "QUY TẮC BẮT BUỘC:",
+    "- CHỈ được dùng thông tin trong danh sách.",
+    "- KHÔNG ĐƯỢC bịa thêm người nào.",
+    "- Giới thiệu ngắn gọn từng người, nêu bật đặc điểm phù hợp với yêu cầu.",
+    "",
+    `[Kết quả — ${profiles.length} người phù hợp]`,
+    list,
+    "",
+    `Yêu cầu người dùng: "${userMessage}"`,
+    "",
+    "Hãy giới thiệu những người phù hợp bằng tiếng Việt, thân thiện, ngắn gọn. Với mỗi người, hãy nêu rõ vì sao họ phù hợp với yêu cầu.",
   ].join("\n");
 }
 
@@ -239,11 +512,20 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2:1.5b";
 /**
  * Call the local Ollama LLM via HTTP and return the generated text.
  * Uses Node built-in http — zero extra dependencies.
+ *
+ * Safeguards:
+ * - Non-200 HTTP status → explicit error with status code + body snippet.
+ * - Malformed JSON → explicit parse error.
+ * - Missing or empty `response` field → explicit error (prevents saving undefined
+ *   to Mongoose and avoids downstream validation failures).
+ * - Returned value is always a non-empty string or the promise rejects.
  */
 export function callLocalLLM(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = new URL("/api/generate", OLLAMA_BASE_URL);
     const payload = JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false });
+
+    console.log(`[LLM] Sending request to ${OLLAMA_BASE_URL} model=${OLLAMA_MODEL}`);
 
     const req = http.request(
       {
@@ -261,21 +543,42 @@ export function callLocalLLM(prompt: string): Promise<string> {
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
         res.on("end", () => {
           const body = Buffer.concat(chunks).toString();
+
+          // Safeguard A1: reject on non-200 HTTP status
           if (res.statusCode !== 200) {
-            reject(new Error(`Ollama returned ${res.statusCode}: ${body}`));
+            console.error(`[LLM] Non-200 status ${res.statusCode}: ${body.slice(0, 200)}`);
+            reject(new Error(`Ollama returned HTTP ${res.statusCode}`));
             return;
           }
+
+          // Safeguard A2: reject on unparseable JSON
+          let data: { response?: unknown };
           try {
-            const data = JSON.parse(body) as { response: string };
-            resolve(data.response.trim());
+            data = JSON.parse(body) as { response?: unknown };
           } catch {
-            reject(new Error("Invalid JSON from Ollama"));
+            console.error(`[LLM] Failed to parse JSON response: ${body.slice(0, 200)}`);
+            reject(new Error("Ollama returned invalid JSON"));
+            return;
           }
+
+          // Safeguard A3: ensure response field is a non-empty string
+          const text = typeof data.response === "string" ? data.response.trim() : "";
+          if (!text) {
+            console.error(`[LLM] response field missing or empty in: ${body.slice(0, 200)}`);
+            reject(new Error("Ollama returned an empty response field"));
+            return;
+          }
+
+          console.log(`[LLM] Response received (${text.length} chars)`);
+          resolve(text);
         });
       },
     );
 
-    req.on("error", (err) => reject(err));
+    req.on("error", (err) => {
+      console.error(`[LLM] Connection error: ${(err as Error).message}`);
+      reject(err);
+    });
     req.write(payload);
     req.end();
   });

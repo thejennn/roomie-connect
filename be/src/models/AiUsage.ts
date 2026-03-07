@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 /**
  * AI Usage Log — tracks every AI chat interaction.
- * Stores the user's prompt, Gemini's response, and metadata.
+ * Stores the user's prompt, AI response, and metadata.
  */
 export interface IAiUsage extends Document {
   userId: mongoose.Types.ObjectId;
@@ -11,6 +11,8 @@ export interface IAiUsage extends Document {
   tokensUsed: number;
   /** Snapshot of room documents returned for this query (used to restore history UI) */
   roomResults?: Record<string, unknown>[];
+  /** Snapshot of roommate profiles returned for this query */
+  roommateResults?: Record<string, unknown>[];
   createdAt: Date;
 }
 
@@ -35,6 +37,10 @@ const aiUsageSchema = new Schema<IAiUsage>(
     },
     // Stored as mixed so we can snapshot any room shape without coupling to Room schema
     roomResults: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: undefined,
+    },
+    roommateResults: {
       type: [mongoose.Schema.Types.Mixed],
       default: undefined,
     },
