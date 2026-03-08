@@ -822,7 +822,7 @@ async function seed() {
       const user = await User.create({
         ...userFields,
         password: hashedPassword,
-        aiTokens: { tokens: 20, maxTokens: 100 }, // Give tenants 20 free AI tokens
+        aiTokens: { tokens: 20, maxTokens: 1000 }, // Give tenants 20 free AI tokens
       });
 
       // Create roommate profile
