@@ -109,7 +109,7 @@ const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'bot',
   content:
-    'Xin chào! Tôi là **KnockBot** — trợ lý AI của KnockKnock.\n\nTôi có thể giúp bạn:\n•  **Tìm phòng**: “Tìm phòng dưới 3 triệu ở Hòa Lạc”\n•  **Tìm bạn cùng phòng**: “Tìm bạn phòng ngủ sớm, không hút thuốc,.. ”\n•  Hỏi đáp chung về tìm phòng trọ\n\nMỗi tin nhắn sẽ sử dụng 1 token.',
+    'Xin chào! Tôi là **KnockBot** — trợ lý AI của KnockKnock.\n\nTôi có thể giúp bạn:\n•  **Tìm phòng**: "Tìm phòng dưới 3 triệu ở Hòa Lạc"\n•  **Tìm bạn cùng phòng**: "Tìm bạn phòng ngủ sớm, không hút thuốc,.. "\n•  Hỏi đáp chung về tìm phòng trọ\n\nMỗi tin nhắn sẽ sử dụng 1 KnockCoin.',
   timestamp: new Date(),
 };
 
@@ -202,7 +202,7 @@ export default function TenantAIChat() {
 
     // Check token balance (client-side — backend also validates)
     if (aiTokens <= 0) {
-      toast.error('Bạn đã hết token AI. Vui lòng nạp thêm để tiếp tục.');
+      toast.error('Bạn đã hết KnockCoin. Vui lòng nạp thêm để tiếp tục.');
       return;
     }
 
@@ -386,7 +386,7 @@ export default function TenantAIChat() {
               className="flex items-center gap-1 px-3 py-1"
             >
               <Coins className="h-3.5 w-3.5" />
-              <span>{aiTokens} token{aiTokens !== 1 ? 's' : ''}</span>
+              <span>{aiTokens} KnockCoin</span>
             </Badge>
             <Button
               onClick={() => navigate('/tenant/ai-payment')}

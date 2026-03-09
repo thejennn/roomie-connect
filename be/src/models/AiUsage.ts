@@ -9,6 +9,12 @@ export interface IAiUsage extends Document {
   prompt: string;
   response: string;
   tokensUsed: number;
+  /** Classified intent for this turn */
+  intent?: string;
+  /** Whether the LLM was invoked (false = DB-only or static fallback) */
+  llmUsed?: boolean;
+  /** Response type for observability: DB | LLM | FALLBACK | OUT_OF_SCOPE | CLARIFICATION | SYSTEM_ERROR */
+  responseType?: string;
   /** Snapshot of room documents returned for this query (used to restore history UI) */
   roomResults?: Record<string, unknown>[];
   /** Snapshot of roommate profiles returned for this query */
@@ -35,6 +41,9 @@ const aiUsageSchema = new Schema<IAiUsage>(
       type: Number,
       default: 1,
     },
+    intent: { type: String },
+    llmUsed: { type: Boolean },
+    responseType: { type: String },
     // Stored as mixed so we can snapshot any room shape without coupling to Room schema
     roomResults: {
       type: [mongoose.Schema.Types.Mixed],

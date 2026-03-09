@@ -139,8 +139,12 @@ export default function Profile() {
         >
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <User className="h-10 w-10 text-primary-foreground" />
+              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center overflow-hidden">
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <User className="h-10 w-10 text-primary-foreground" />
+                )}
               </div>
               <button 
                 onClick={() => navigate('/edit-profile')}

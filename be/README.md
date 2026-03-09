@@ -1,53 +1,102 @@
-# Roomie Connect Backend
+# KnockKnock — Backend API
 
-Node.js + MongoDB backend API for Roomie Connect.
+Backend API server cho ứng dụng **KnockKnock** — nền tảng tìm phòng trọ & bạn ở ghép dành cho sinh viên.
 
-## Setup
+## Tech Stack
 
-1. **Install dependencies**
+- **Runtime**: Node.js
+- **Language**: TypeScript
+- **Framework**: Express.js
+- **Database**: MongoDB (Mongoose ODM)
+- **Authentication**: JWT (jsonwebtoken) + bcryptjs
+- **AI**: qwen2:1.5b 
+- **Dev Tools**: ts-node-dev (hot reload)
 
-   ```bash
-   cd be
-   npm install
-   ```
+## Cách chạy
 
-2. **Configure environment**
+### 1. Cài đặt dependencies
 
-   ```bash
-   # Copy .env.example to .env and update values
-   cp .env.example .env
-   ```
+```bash
+cd be
+npm install
+```
 
-3. **Start MongoDB**
-   - Local: `mongod --dbpath /your/db/path`
-   - Or use MongoDB Atlas connection string in `.env`
+### 2. Cấu hình biến môi trường
 
-4. **Seed the database**
+Tạo file `.env` trong thư mục `be/`:
 
-   ```bash
-   npm run seed
-   ```
+```env
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/roomie-connect
+JWT_SECRET=your-secret-key
+FRONTEND_URL=http://localhost:5173
+```
 
-5. **Start development server**
-   ```bash
-   npm run dev
-   ```
+### 3. Khởi động MongoDB
+
+- Local: `mongod`
+- Hoặc dùng MongoDB Atlas connection string trong `.env`
+
+### 4. Seed dữ liệu mẫu (tuỳ chọn)
+
+```bash
+npm run seed
+```
+
+### 5. Chạy server development
+
+```bash
+npm run dev
+```
+
+Server sẽ chạy tại `http://localhost:5000`.
+
+### 6. Build production
+
+```bash
+npm run build
+npm start
+```
 
 ## API Endpoints
 
-| Endpoint               | Method  | Auth     | Description       |
-| ---------------------- | ------- | -------- | ----------------- |
-| `/api/health`          | GET     | No       | Health check      |
-| `/api/auth/register`   | POST    | No       | Register user     |
-| `/api/auth/login`      | POST    | No       | Login user        |
-| `/api/auth/profile`    | GET/PUT | Yes      | User profile      |
-| `/api/rooms`           | GET     | No       | List rooms        |
-| `/api/rooms/:id`       | GET     | No       | Get room          |
-| `/api/rooms`           | POST    | Landlord | Create room       |
-| `/api/roommates`       | GET     | No       | List profiles     |
-| `/api/roommates/match` | POST    | Yes      | Find matches      |
-| `/api/notifications`   | GET     | Yes      | Get notifications |
-| `/api/wallet`          | GET     | Yes      | Get balance       |
+| Endpoint               | Method     | Auth     | Mô tả                    |
+| ---------------------- | ---------- | -------- | ------------------------- |
+| `/api/health`          | GET        | Không    | Health check              |
+| `/api/auth/register`   | POST       | Không    | Đăng ký tài khoản         |
+| `/api/auth/login`      | POST       | Không    | Đăng nhập                 |
+| `/api/auth/profile`    | GET / PUT  | Có       | Xem / cập nhật hồ sơ      |
+| `/api/rooms`           | GET        | Không    | Danh sách phòng            |
+| `/api/rooms/:id`       | GET        | Không    | Chi tiết phòng             |
+| `/api/rooms`           | POST       | Landlord | Tạo phòng mới             |
+| `/api/roommates`       | GET        | Không    | Danh sách profile tìm bạn  |
+| `/api/roommates/match` | POST       | Có       | Tìm bạn ở ghép phù hợp   |
+| `/api/ai/chat`         | POST       | Có       | Chat với AI (trừ KnockCoin) |
+| `/api/ai/tokens`       | GET        | Có       | Số KnockCoin còn lại      |
+| `/api/ai/history`      | GET / DEL  | Có       | Lịch sử chat AI           |
+| `/api/notifications`   | GET        | Có       | Thông báo                 |
+| `/api/wallet`          | GET        | Có       | Số dư ví (landlord)       |
+| `/api/favorites`       | GET / POST | Có       | Phòng đã lưu              |
+
+## Cấu trúc thư mục
+
+```
+be/
+├── src/
+│   ├── server.ts          # Entry point
+│   ├── config/
+│   │   └── database.ts    # MongoDB connection
+│   ├── middleware/
+│   │   ├── auth.middleware.ts
+│   │   ├── error.middleware.ts
+│   │   └── subscription.middleware.ts
+│   ├── models/            # Mongoose schemas
+│   ├── routes/            # Express routers + controllers
+│   ├── seeds/             # Database seeder
+│   └── services/          # Business logic (AI service)
+├── package.json
+└── tsconfig.json
+```
 
 ## Default Credentials
 

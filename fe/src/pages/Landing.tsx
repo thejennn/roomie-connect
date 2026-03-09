@@ -22,6 +22,51 @@ const features = [
 	},
 ];
 
+// ─── Domain types ─────────────────────────────────────────────────────────────
+type ModalMode = 'login' | 'register';
+type Role = 'tenant' | 'landlord' | 'admin';
+type RegisterRole = Exclude<Role, 'admin'>; // tenant | landlord only
+
+interface RoleOption {
+	value: Role;
+	label: string;
+	description: string;
+	icon: React.ElementType;
+	iconClass: string;
+}
+
+// Admin option only available on login — cannot self-register as admin
+const ALL_ROLE_OPTIONS: RoleOption[] = [
+	{
+		value: 'admin',
+		label: 'Admin',
+		description: 'Quản lý hệ thống',
+		icon: Shield,
+		iconClass: 'text-rose-500',
+	},
+	{
+		value: 'tenant',
+		label: 'Người tìm trọ',
+		description: 'Tìm phòng, làm bài quiz, kết nối bạn ở ghép',
+		icon: Users,
+		iconClass: 'text-primary',
+	},
+	{
+		value: 'landlord',
+		label: 'Chủ trọ',
+		description: 'Đăng tin, quản lý ví và tin đăng',
+		icon: Shield,
+		iconClass: 'text-emerald-500',
+	},
+];
+
+const REGISTER_ROLE_OPTIONS = ALL_ROLE_OPTIONS.filter(
+	(r): r is RoleOption & { value: RegisterRole } => r.value !== 'admin',
+);
+
+const DEFAULT_ROLE: RegisterRole = 'tenant';
+
+// ─── Animation variants ───────────────────────────────────────────────────────
 const fadeUp = {
 	hidden: { opacity: 0, y: 30 },
 	visible: { opacity: 1, y: 0 },
@@ -30,24 +75,31 @@ const fadeUp = {
 export default function Landing() {
 	const navigate = useNavigate();
 	const [roleModalOpen, setRoleModalOpen] = useState(false);
-	const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord'>('tenant');
-	const [modalMode, setModalMode] = useState<'login' | 'register'>('login');
+	const [selectedRole, setSelectedRole] = useState<Role>(DEFAULT_ROLE);
+	const [modalMode, setModalMode] = useState<ModalMode>('login');
 
-	const openRoleModal = (mode: 'login' | 'register') => {
+	const roleOptions = modalMode === 'login' ? ALL_ROLE_OPTIONS : REGISTER_ROLE_OPTIONS;
+
+	const openRoleModal = (mode: ModalMode) => {
 		setModalMode(mode);
+		// Reset to default when switching to register — admin is not a valid register role
+		if (mode === 'register' && selectedRole === 'admin') {
+			setSelectedRole(DEFAULT_ROLE);
+		}
 		setRoleModalOpen(true);
 	};
-	
+
 	const continueWithRole = () => {
 		setRoleModalOpen(false);
 		if (modalMode === 'login') {
 			navigate(`/auth/login?role=${selectedRole}`);
 		} else {
-			navigate(`/auth/register?role=${selectedRole}`);
+			// Type guard: prevent admin from being registered (domain invariant)
+			const registerRole: RegisterRole =
+				selectedRole === 'admin' ? DEFAULT_ROLE : selectedRole;
+			navigate(`/auth/register?role=${registerRole}`);
 		}
-		console.log(`Selected role: ${selectedRole}, Mode: ${modalMode}`);
 	};
-	console.log('Landing page rendered');
 	return (
 		<div className="min-h-screen overflow-hidden" style={{ background: 'hsl(142 72% 40%)' }}>
 			{/* Floating Shapes */}
@@ -253,36 +305,32 @@ export default function Landing() {
 							{modalMode === 'register' ? 'Chọn vai trò để đăng ký' : 'Chọn vai trò để đăng nhập'}
 						</h3>
 
-						{/* Role options */}
+						{/* Role options — data-driven, no hard-coded duplication */}
 						<div className="grid grid-cols-1 gap-3 mb-6">
-							{modalMode === 'login' && (
-								<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'admin' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-									<input type="radio" name="role" value="admin" checked={selectedRole === 'admin'} onChange={() => setSelectedRole('admin')} className="hidden" />
-									<Shield className="h-6 w-6 text-rose-500" />
+							{roleOptions.map(({ value, label, description, icon: Icon, iconClass }) => (
+								<label
+									key={value}
+									className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-colors ${
+										selectedRole === value
+											? 'border-primary bg-primary/5'
+											: 'border-border hover:bg-muted/50'
+									}`}
+								>
+									<input
+										type="radio"
+										name="role"
+										value={value}
+										checked={selectedRole === value}
+										onChange={() => setSelectedRole(value)}
+										className="hidden"
+									/>
+									<Icon className={`h-6 w-6 ${iconClass}`} />
 									<div>
-										<div className="font-medium">Admin</div>
-										<div className="text-sm text-muted-foreground">Quản lý hệ thống</div>
+										<div className="font-medium">{label}</div>
+										<div className="text-sm text-muted-foreground">{description}</div>
 									</div>
 								</label>
-							)}
-							<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'tenant' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-								<input type="radio" name="role" value="tenant" checked={selectedRole === 'tenant'} onChange={() => setSelectedRole('tenant')} className="hidden" />
-								<Users className="h-6 w-6 text-primary" />
-								<div>
-									<div className="font-medium">Người tìm trọ</div>
-									<div className="text-sm text-muted-foreground">Tìm phòng, làm bài quiz, kết nối bạn ở ghép</div>
-								</div>
-							</label>
-
-							<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'landlord' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-								<input type="radio" name="role" value="landlord" checked={selectedRole === 'landlord'} onChange={() => setSelectedRole('landlord')} className="hidden" />
-								<Shield className="h-6 w-6 text-emerald-500" />
-								<div>
-									<div className="font-medium">Chủ trọ</div>
-									<div className="text-sm text-muted-foreground">Đăng tin, quản lý ví và tin đăng</div>
-								</div>
-							</label>
-
+							))}
 						</div>
 
 						<div className="flex items-center justify-end gap-3">

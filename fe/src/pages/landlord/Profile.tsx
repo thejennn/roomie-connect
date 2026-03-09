@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   User,
   Mail,
@@ -6,30 +6,21 @@ import {
   MessageCircle,
   CreditCard,
   Save,
-  Camera,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import LandlordLayout from "@/components/layouts/LandlordLayout";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { AvatarUpload } from "@/components/AvatarUpload";
 
 export default function LandlordProfile() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState({
     full_name: "",
     email: "",
@@ -44,6 +35,8 @@ export default function LandlordProfile() {
     if (user) {
       fetchProfile();
     }
+    // fetchProfile is defined below and stable – eslint-disable is safe here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchProfile = async () => {
@@ -81,47 +74,6 @@ export default function LandlordProfile() {
       toast.error("Không thể tải thông tin hồ sơ");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAvatarUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Kích thước ảnh không được vượt quá 2MB");
-      return;
-    }
-
-    if (!file.type.match(/^image\//)) {
-      toast.error("Vui lòng chọn file ảnh hợp lệ");
-      return;
-    }
-
-    try {
-      setUploading(true);
-
-      // For now, we'll use a placeholder URL or base64
-      // In production, you should implement file upload to your backend
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const avatarUrl = reader.result as string;
-        setProfile({ ...profile, avatar_url: avatarUrl });
-        toast.success("Tải ảnh lên thành công");
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error("Error uploading avatar:", error);
-      toast.error("Không thể tải ảnh lên. Vui lòng thử lại sau.");
-      setUploading(false);
-    } finally {
-      // Reset input value to allow selecting same file again
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -178,33 +130,14 @@ export default function LandlordProfile() {
               <CardHeader>
                 <CardTitle>Ảnh đại diện</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col items-center gap-4">
-                <Avatar className="h-32 w-32">
-                  <AvatarImage src={profile.avatar_url} />
-                  <AvatarFallback className="text-4xl">
-                    {profile.full_name?.charAt(0)?.toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleAvatarUpload}
+              <CardContent>
+                <AvatarUpload
+                  currentAvatarUrl={profile.avatar_url}
+                  fallbackLabel={profile.full_name?.charAt(0)?.toUpperCase() || "U"}
+                  onAvatarChange={(newUrl) =>
+                    setProfile((prev) => ({ ...prev, avatar_url: newUrl }))
+                  }
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  {uploading ? "Đang tải..." : "Tải ảnh lên"}
-                </Button>
-                <p className="text-sm text-muted-foreground text-center">
-                  JPG, PNG hoặc GIF. Tối đa 2MB.
-                </p>
               </CardContent>
             </Card>
           </div>

@@ -69,7 +69,7 @@ router.delete("/history", authMiddleware, async (req: AuthRequest, res: Response
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/ai/tokens — Get the user's remaining AI token balance
+// GET /api/ai/tokens — Get the user's remaining KnockCoin balance
 // ---------------------------------------------------------------------------
 router.get("/tokens", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -83,7 +83,7 @@ router.get("/tokens", authMiddleware, async (req: AuthRequest, res: Response): P
 
     res.json({
       tokens: user.aiTokens?.tokens ?? 0,
-      maxTokens: user.aiTokens?.maxTokens ?? 100,
+      maxTokens: user.aiTokens?.maxTokens ?? Infinity,
     });
   } catch (error) {
     console.error("AI tokens error:", error);

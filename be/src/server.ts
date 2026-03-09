@@ -1,3 +1,4 @@
+import path from "path";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -22,8 +23,15 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || true,
   credentials: false,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// JSON body limit: 1 MB is generous for all normal API payloads.
+// File uploads (avatars) bypass this entirely because they use
+// multipart/form-data handled by multer — they never touch express.json().
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Serve uploaded files (avatars, etc.) as static assets
+app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
 
 // API Routes
 app.use("/api", routes);

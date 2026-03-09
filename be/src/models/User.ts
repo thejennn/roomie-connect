@@ -29,7 +29,7 @@ export interface IUser extends Document {
 const aiTokensSchema = new Schema<IAiTokens>(
   {
     tokens: { type: Number, default: 0 },
-    maxTokens: { type: Number, default: 10000 },
+    maxTokens: { type: Number, default: Infinity },
   },
   { _id: false },
 );
@@ -67,7 +67,7 @@ const userSchema = new Schema<IUser>(
     },
     aiTokens: {
       type: aiTokensSchema,
-      default: () => ({ tokens: 0, maxTokens: 1000 }),
+      default: () => ({ tokens: 0, maxTokens: Infinity }),
     },
   },
   {

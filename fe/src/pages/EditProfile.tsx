@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Camera, User } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -41,6 +42,9 @@ export default function EditProfile() {
   const [workplace, setWorkplace] = useState('');
   const [bankName, setBankName] = useState('');
   const [bankAccount, setBankAccount] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -58,6 +62,7 @@ export default function EditProfile() {
     if (user && !authLoading) {
       setFullName(user.fullName || '');
       setPhone(user.phone || '');
+      setAvatarUrl(user.avatarUrl || '');
       if (role === 'tenant') {
         setUniversity(user.university || '');
         setWorkplace(user.workplace || '');
@@ -67,6 +72,40 @@ export default function EditProfile() {
       }
     }
   }, [user, role, authLoading]);
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Kích thước ảnh không được vượt quá 2MB');
+      return;
+    }
+
+    if (!file.type.match(/^image\//)) {
+      toast.error('Vui lòng chọn file ảnh hợp lệ');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setAvatarUrl(dataUrl);
+        toast.success('Tải ảnh lên thành công');
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error('Không thể tải ảnh lên. Vui lòng thử lại.');
+      setUploading(false);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +146,7 @@ export default function EditProfile() {
   const handleSave = async (data: TenantFormData | LandlordFormData) => {
     setIsLoading(true);
     try {
-      const { error } = await apiClient.updateProfile(data);
+      const { error } = await apiClient.updateProfile({ ...data, avatarUrl });
 
       if (error) {
         toast.error('Lỗi: ' + error);
@@ -164,6 +203,34 @@ export default function EditProfile() {
             <p className="text-muted-foreground">
               {role === 'tenant' ? 'Cập nhật thông tin cá nhân' : 'Cập nhật thông tin tài khoản'}
             </p>
+          </div>
+
+          {/* Avatar Upload */}
+          <div className="flex flex-col items-center gap-4 mb-6">
+            <div className="relative">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={avatarUrl} />
+                <AvatarFallback className="text-3xl">
+                  {fullName ? fullName.charAt(0).toUpperCase() : <User className="h-10 w-10" />}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+              </button>
+            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+            />
+            <p className="text-xs text-muted-foreground">Nhấn vào biểu tượng máy ảnh để thay đổi ảnh (tối đa 2MB)</p>
           </div>
 
           {/* Form */}

@@ -412,6 +412,38 @@ class ApiClient {
       body: JSON.stringify({ roomId }),
     });
   }
+
+  /**
+   * Upload a pre-processed avatar Blob via FormData.
+   * The backend saves the file, returns { avatarUrl } pointing to the
+   * stored file (never a base64 string).
+   *
+   * @param formData - Must contain a single field "avatar" with a Blob/File.
+   */
+  async uploadAvatar(formData: FormData): Promise<{ data: { avatarUrl: string }; error?: string }> {
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    // Do NOT set Content-Type; the browser sets it with the correct boundary.
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/upload-avatar`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        return { data: { avatarUrl: '' }, error: data.error || `HTTP ${response.status}` };
+      }
+      return { data };
+    } catch (err) {
+      return {
+        data: { avatarUrl: '' },
+        error: err instanceof Error ? err.message : 'Network error',
+      };
+    }
+  }
 }
 
 export const apiClient = new ApiClient();
