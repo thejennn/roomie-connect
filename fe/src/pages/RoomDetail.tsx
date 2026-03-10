@@ -170,6 +170,18 @@ export default function RoomDetail() {
       setIsSaving(false);
     }
   };
+  
+  // Vite environment key for Google Maps Embed API
+  const mapsKey = (import.meta.env as Record<string, any>).VITE_GOOGLE_MAPS_KEY as
+    | string
+    | undefined;
+
+  // Build embed URL when address and API key are available
+  const mapSrc = room?.address && mapsKey
+    ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(
+        mapsKey,
+      )}&q=${encodeURIComponent(room.address)}`
+    : null;
 
   if (loading) {
     return (
@@ -415,7 +427,7 @@ export default function RoomDetail() {
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  {room.address}
+                    {room.address}
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
@@ -426,6 +438,28 @@ export default function RoomDetail() {
                   {room.views || 0} lượt xem
                 </span>
               </div>
+
+                {/* Google Maps Embed iframe: render directly under the address when address + key exist */}
+                {mapSrc ? (
+                  <div className="mt-3 w-full h-64 rounded overflow-hidden">
+                    <iframe
+                      title="Room location"
+                      src={mapSrc}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0, minHeight: 240 }}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                ) : (
+                  room.address && !mapsKey ? (
+                    <div className="mt-3 text-sm text-yellow-600">
+                      VITE_GOOGLE_MAPS_KEY chưa được cấu hình — bản đồ không hiển thị.
+                    </div>
+                  ) : null
+                )}
             </div>
 
             {/* Key Specs */}
@@ -450,7 +484,7 @@ export default function RoomDetail() {
             <div className="glass-card p-4 rounded-2xl">
               <h3 className="font-semibold mb-3">💡 Chi phí dịch vụ</h3>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {[
+                {([
                   {
                     icon: <Zap className="h-4 w-4" />,
                     label: "Điện",
@@ -478,7 +512,7 @@ export default function RoomDetail() {
                     label: "Gửi xe",
                     value: formatUtility(room.utilities.parking),
                   },
-                ].map((item) => (
+                ]).map((item) => (
                   <div
                     key={item.label}
                     className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
