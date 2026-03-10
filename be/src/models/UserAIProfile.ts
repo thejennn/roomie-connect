@@ -50,8 +50,6 @@ const userAIProfileSchema = new Schema<IUserAIProfile>(
   { timestamps: true },
 );
 
-userAIProfileSchema.index({ userId: 1 });
-
 export const UserAIProfile = mongoose.model<IUserAIProfile>(
   "UserAIProfile",
   userAIProfileSchema,
