@@ -1,151 +1,282 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import http from "http";
+import { Room, IRoom } from "../models/Room";
+import { RoommateProfile, IRoommateProfile } from "../models/RoommateProfile";
+import { parseBudget } from "./budget.parser";
+import type { RoommateCriteria } from "./roommate.extractor";
 
-/**
- * AI Filter Extraction Service
- *
- * Accepts a Vietnamese sentence from the user, sends it to Gemini,
- * and extracts structured room-search filters as JSON.
- *
- * Extracted filters:
- *  - intent: "search_room" | "general_question"
- *  - max_price: number | null       (VND)
- *  - district: string | null
- *  - amenities: string[]            (boolean field names from Room schema)
- *  - reply: string                  (conversational AI reply in Vietnamese)
- */
+// ---------------------------------------------------------------------------
+// Re-export prompt builders from PromptFactory for backward compatibility
+// ---------------------------------------------------------------------------
+export {
+  buildRoomPrompt,
+  buildRoommatePrompt,
+  buildSmallTalkPrompt,
+  buildGeneralQAPrompt,
+} from "./prompt.factory";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-export interface ExtractedFilters {
-  intent: "search_room" | "general_question";
-  max_price: number | null;
-  district: string | null;
+
+/** Structured filters for FIND_ROOM queries. */
+export interface RoomSearchFilters {
+  maxPrice: number | null;
+  maxArea: number | null;
   amenities: string[];
-  reply: string;
+  /** MongoDB regex fragment for location scope (from location resolver). */
+  locationRegex: string;
 }
 
 // ---------------------------------------------------------------------------
-// Lazy-initialise Gemini client
+// Room Filter Extraction — regex + keyword matching (zero LLM cost)
 // ---------------------------------------------------------------------------
-let genAI: GoogleGenerativeAI | null = null;
 
-function getGenAI(): GoogleGenerativeAI {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE") {
-      throw new Error("GEMINI_API_KEY is not configured. Set it in .env");
-    }
-    genAI = new GoogleGenerativeAI(apiKey);
+/**
+ * Area filter: "30m2", "30 m²", "dưới 30m"
+ * Treated as an upper bound on room area.
+ */
+const AREA_REGEX = /(\d+)\s*m(?:2|²|\s)/i;
+
+/**
+ * Amenity keyword → Mongoose boolean field name mapping.
+ */
+const AMENITY_MAP: { pattern: RegExp; field: string }[] = [
+  { pattern: /máy lạnh|điều hòa/i, field: "hasAirConditioner" },
+  { pattern: /giường/i, field: "hasBed" },
+  { pattern: /tủ quần|tủ đồ/i, field: "hasWardrobe" },
+  { pattern: /nóng lạnh|bình nước nóng|máy nước nóng/i, field: "hasWaterHeater" },
+  { pattern: /bếp|nhà bếp/i, field: "hasKitchen" },
+  { pattern: /tủ lạnh/i, field: "hasFridge" },
+  { pattern: /máy giặt riêng/i, field: "hasPrivateWashing" },
+  { pattern: /máy giặt chung/i, field: "hasSharedWashing" },
+  { pattern: /chỗ để xe|bãi đỗ xe|gửi xe/i, field: "hasParking" },
+  { pattern: /thang máy/i, field: "hasElevator" },
+  { pattern: /camera/i, field: "hasSecurityCamera" },
+  { pattern: /phòng cháy|chữa cháy/i, field: "hasFireSafety" },
+  { pattern: /thú cưng|pet/i, field: "hasPetFriendly" },
+  { pattern: /sân phơi/i, field: "hasDryingArea" },
+  { pattern: /nội thất|full nội thất|đầy đủ nội thất/i, field: "isFullyFurnished" },
+];
+
+/**
+ * Extract structured room-search filters from a Vietnamese user message.
+ * Location is NOT extracted here — handled by location.resolver.ts.
+ * Budget is delegated to budget.parser.ts.
+ *
+ * @param message — sanitised user message.
+ * @param locationRegex — pre-resolved MongoDB regex from location resolver.
+ */
+export function extractRoomFilters(
+  message: string,
+  locationRegex: string,
+): RoomSearchFilters {
+  const maxPrice = parseBudget(message);
+
+  let maxArea: number | null = null;
+  const am = message.match(AREA_REGEX);
+  if (am) maxArea = parseInt(am[1], 10);
+
+  const amenities: string[] = [];
+  for (const { pattern, field } of AMENITY_MAP) {
+    if (pattern.test(message)) amenities.push(field);
   }
-  return genAI;
+
+  return { maxPrice, maxArea, amenities, locationRegex };
 }
 
-const MODEL_NAME = "gemini-2.0-flash";
-
 // ---------------------------------------------------------------------------
-// The extraction prompt — maps Vietnamese amenity keywords to Room schema fields
+// MongoDB Query
 // ---------------------------------------------------------------------------
-const EXTRACTION_PROMPT = `Bạn là trợ lý AI cho nền tảng tìm phòng trọ KnockKnock.
 
-Nhiệm vụ: Phân tích câu hỏi tiếng Việt của người dùng và trả về JSON.
+/**
+ * Query active rooms from MongoDB using the extracted filters.
+ * Hard cap of 5 results keeps the LLM prompt small and focused.
+ *
+ * Location scoping is determined by the pre-resolved locationRegex
+ * from the location resolver — no inline location logic here.
+ */
+export async function queryRooms(
+  filters: RoomSearchFilters,
+  limit = 5,
+): Promise<IRoom[]> {
+  const query: Record<string, unknown> = { status: "active" };
 
-Quy tắc ánh xạ tiện ích → field name:
-- "máy lạnh", "điều hòa" → "hasAirConditioner"
-- "giường" → "hasBed"
-- "tủ quần áo", "tủ đồ" → "hasWardrobe"
-- "nóng lạnh", "bình nóng lạnh", "máy nước nóng" → "hasWaterHeater"
-- "bếp", "nhà bếp" → "hasKitchen"
-- "tủ lạnh" → "hasFridge"
-- "máy giặt riêng" → "hasPrivateWashing"
-- "máy giặt chung" → "hasSharedWashing"
-- "chỗ để xe", "bãi đỗ xe" → "hasParking"
-- "thang máy" → "hasElevator"
-- "camera an ninh" → "hasSecurityCamera"
-- "phòng cháy" → "hasFireSafety"
-- "thú cưng" → "hasPetFriendly"
-- "sân phơi" → "hasDryingArea"
-- "đầy đủ nội thất", "full nội thất" → "isFullyFurnished"
+  if (filters.maxPrice !== null) {
+    query.price = { $lte: filters.maxPrice };
+  }
+  if (filters.maxArea !== null) {
+    query.area = { $lte: filters.maxArea };
+  }
+  for (const field of filters.amenities) {
+    query[field] = true;
+  }
 
-Quy tắc giá:
-- "triệu" hoặc "tr" → nhân 1.000.000  (ví dụ: "3 triệu" = 3000000)
-- "k" → nhân 1.000  (ví dụ: "500k" = 500000)
-- Nếu người dùng nói "dưới 3 triệu" → max_price = 3000000
+  // Location scope — always enforced via resolved regex
+  query.$and = [
+    {
+      $or: [
+        { address: { $regex: filters.locationRegex, $options: "i" } },
+        { district: { $regex: filters.locationRegex, $options: "i" } },
+      ],
+    },
+  ];
 
-Quy tắc khu vực (district):
-- Trả về tên quận/huyện/phường/xã/khu vực được nhắc đến
-- Ví dụ: "Hòa Lạc", "Thạch Thất", "Cầu Giấy", "Quận 1"
-
-Trả về JSON **duy nhất**, không thêm text khác:
-{
-  "intent": "search_room" hoặc "general_question",
-  "max_price": number hoặc null,
-  "district": string hoặc null,
-  "amenities": ["hasAirConditioner", ...] hoặc [],
-  "reply": "Câu trả lời thân thiện bằng tiếng Việt cho người dùng"
+  return Room.find(query)
+    .select("title price address district area capacity images")
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean<IRoom[]>();
 }
 
-Nếu intent là "general_question", hãy điền "reply" với câu trả lời hữu ích.
-Nếu intent là "search_room", hãy điền "reply" mô tả bộ lọc đã hiểu được.`;
+// ---------------------------------------------------------------------------
+// Roommate DB Query
+// ---------------------------------------------------------------------------
+
+// Roommate filter extraction is now in roommate.extractor.ts.
+// Re-export the type for backward compatibility.
+export type { RoommateCriteria as RoommateFilters } from "./roommate.extractor";
+
+/**
+ * Query roommate profiles from MongoDB using extracted criteria.
+ */
+export async function queryRoommates(
+  filters: RoommateCriteria,
+  limit = 5,
+): Promise<IRoommateProfile[]> {
+  const query: Record<string, unknown> = { isPublic: true };
+
+  if (filters.district) {
+    query.preferredDistrict = { $regex: filters.district, $options: "i" };
+  }
+  if (filters.maxBudget) {
+    query.budgetMin = { $lte: filters.maxBudget };
+  }
+
+  // Preference filters — use $in so multiple acceptable enum values can match
+  if (filters.smoking?.length) {
+    query["preferences.smoking"] = { $in: filters.smoking };
+  }
+  if (filters.pets?.length) {
+    query["preferences.pets"] = { $in: filters.pets };
+  }
+  if (filters.genderPreference) {
+    query["preferences.genderPreference"] = filters.genderPreference;
+  }
+  if (filters.sleepTime) {
+    query["preferences.sleepTime"] = filters.sleepTime;
+  }
+  if (filters.socialHabit) {
+    query["preferences.socialHabit"] = filters.socialHabit;
+  }
+  if (filters.cookingHabit?.length) {
+    query["preferences.cookingHabit"] = { $in: filters.cookingHabit };
+  }
+  if (filters.guests?.length) {
+    query["preferences.guests"] = { $in: filters.guests };
+  }
+  if (filters.alcohol?.length) {
+    query["preferences.alcohol"] = { $in: filters.alcohol };
+  }
+  if (filters.roomCleaning) {
+    query["preferences.roomCleaning"] = filters.roomCleaning;
+  }
+
+  return RoommateProfile.find(query)
+    .select("userId bio budgetMin budgetMax preferredDistrict university lookingFor preferences")
+    .populate("userId", "fullName avatarUrl")
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean<IRoommateProfile[]>();
+}
 
 // ---------------------------------------------------------------------------
-// Public: Extract structured filters from a Vietnamese message
+// Local LLM Call (Ollama)
 // ---------------------------------------------------------------------------
-export async function extractSearchFilters(
-  userMessage: string,
-): Promise<ExtractedFilters> {
-  const ai = getGenAI();
-  const model = ai.getGenerativeModel({
-    model: MODEL_NAME,
-    systemInstruction: EXTRACTION_PROMPT,
+
+const OLLAMA_BASE_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5:7b-instruct";
+
+/**
+ * Call the local Ollama LLM via HTTP and return the generated text.
+ * Uses Node built-in http — zero extra dependencies.
+ *
+ * Safeguards:
+ * - Non-200 HTTP status → explicit error with status code + body snippet.
+ * - Malformed JSON → explicit parse error.
+ * - Missing or empty `response` field → explicit error (prevents saving undefined
+ *   to Mongoose and avoids downstream validation failures).
+ * - Returned value is always a non-empty string or the promise rejects.
+ */
+export function callLocalLLM(prompt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = new URL("/api/generate", OLLAMA_BASE_URL);
+    const payload = JSON.stringify({
+      model: OLLAMA_MODEL,
+      prompt,
+      stream: false,
+      options: {
+        temperature: 0.4,   // ổn định hơn cho hệ thống tìm trọ
+        top_p: 0.9,
+        num_predict: 400,   // giới hạn token output
+      },
+    });
+
+    console.log(`[LLM] Sending request to ${OLLAMA_BASE_URL} model=${OLLAMA_MODEL}`);
+
+    const req = http.request(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        method: "POST",
+        timeout: 5000, // safeguard timeout 5s
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks).toString();
+
+          // Safeguard A1: reject on non-200 HTTP status
+          if (res.statusCode !== 200) {
+            console.error(`[LLM] Non-200 status ${res.statusCode}: ${body.slice(0, 200)}`);
+            reject(new Error(`Ollama returned HTTP ${res.statusCode}`));
+            return;
+          }
+
+          // Safeguard A2: reject on unparseable JSON
+          let data: { response?: unknown };
+          try {
+            data = JSON.parse(body) as { response?: unknown };
+          } catch {
+            console.error(`[LLM] Failed to parse JSON response: ${body.slice(0, 200)}`);
+            reject(new Error("Ollama returned invalid JSON"));
+            return;
+          }
+
+          // Safeguard A3: ensure response field is a non-empty string
+          const text = typeof data.response === "string" ? data.response.trim() : "";
+          if (!text) {
+            console.error(`[LLM] response field missing or empty in: ${body.slice(0, 200)}`);
+            reject(new Error("Ollama returned an empty response field"));
+            return;
+          }
+
+          console.log(`[LLM] Response received (${text.length} chars)`);
+          resolve(text);
+        });
+      },
+    );
+
+    req.on("error", (err) => {
+      console.error(`[LLM] Connection error: ${(err as Error).message}`);
+      reject(err);
+    });
+    req.write(payload);
+    req.end();
   });
-
-  console.log(`🔍 Extracting filters from: "${userMessage}"`);
-
-  const result = await model.generateContent(userMessage);
-  const responseText = result.response.text();
-  console.log(`📋 Raw AI response: ${responseText}`);
-
-  // Parse JSON from the response (handle markdown code fences)
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    console.warn("⚠️ Could not extract JSON from AI response");
-    return {
-      intent: "general_question",
-      max_price: null,
-      district: null,
-      amenities: [],
-      reply: "Xin lỗi, mình chưa hiểu rõ yêu cầu của bạn. Bạn có thể nói rõ hơn không?",
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractedFilters;
-
-    // Validate and sanitize the parsed data
-    return {
-      intent: parsed.intent === "search_room" ? "search_room" : "general_question",
-      max_price: typeof parsed.max_price === "number" && parsed.max_price > 0
-        ? parsed.max_price
-        : null,
-      district: typeof parsed.district === "string" && parsed.district.trim()
-        ? parsed.district.trim()
-        : null,
-      amenities: Array.isArray(parsed.amenities)
-        ? parsed.amenities.filter((a) => typeof a === "string")
-        : [],
-      reply: typeof parsed.reply === "string" && parsed.reply.trim()
-        ? parsed.reply.trim()
-        : "Đã nhận yêu cầu của bạn.",
-    };
-  } catch (parseError) {
-    console.error("❌ JSON parse error:", parseError);
-    return {
-      intent: "general_question",
-      max_price: null,
-      district: null,
-      amenities: [],
-      reply: "Xin lỗi, mình chưa hiểu rõ yêu cầu của bạn. Bạn có thể thử lại không?",
-    };
-  }
 }

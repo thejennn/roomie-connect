@@ -13,7 +13,8 @@ import {
   Shield,
   Star,
   Lock,
-  Edit2
+  Edit2,
+  FileText
 } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -44,13 +45,14 @@ export default function Profile() {
       // Fetch saved rooms count
       const favoritesRes = await apiClient.getFavorites();
       if (favoritesRes.data) {
-        const favorites = favoritesRes.data.favorites || favoritesRes.data.rooms || [];
+        const data = favoritesRes.data as Record<string, unknown>;
+        const favorites = (data.favorites as unknown[]) || (data.rooms as unknown[]) || [];
         setSavedCount(Array.isArray(favorites) ? favorites.length : 0);
       }
       
-      // Get viewed rooms from localStorage (unique rooms viewed)
-      const viewedRooms = JSON.parse(localStorage.getItem('viewedRooms') || '[]');
-      setViewedCount(viewedRooms.length);
+      // Get viewed rooms from localStorage (keyed by historyService)
+      const viewedRooms = JSON.parse(localStorage.getItem('room_view_history') || '[]');
+      setViewedCount(Array.isArray(viewedRooms) ? viewedRooms.length : 0);
     } catch (error) {
       console.error('Error fetching stats:', error);
     } finally {
@@ -60,12 +62,13 @@ export default function Profile() {
 
   const MENU_ITEMS = [
     { icon: Heart, label: 'Phòng đã lưu', badge: savedCount.toString(), action: () => navigate('/saved-rooms') },
+    { icon: FileText, label: 'Theo dõi hợp đồng', action: () => navigate('/tenant/contracts') },
     { icon: Clock, label: 'Lịch sử xem', badge: viewedCount.toString(), action: () => navigate('/history') },
     { icon: Bell, label: 'Thông báo', badge: '2', action: () => navigate('/notifications') },
     { icon: Shield, label: 'Quyền riêng tư', action: () => navigate('/privacy') },
     { icon: Lock, label: 'Đổi Mật Khẩu', action: () => navigate('/auth/change-password') },
-    { icon: Star, label: 'Đánh giá ứng dụng', action: () => navigate('/app-rating') },
-    { icon: HelpCircle, label: 'Trợ giúp & Hỗ trợ', action: () => navigate('/support') },
+    { icon: Star, label: 'Đánh giá ứng dụng', action: () => navigate('/rate-app') },
+    { icon: HelpCircle, label: 'Trợ giúp & Hỗ trợ', action: () => navigate('/faq') },
   ];
 
   const handleLogout = async () => {
@@ -138,8 +141,12 @@ export default function Profile() {
         >
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <User className="h-10 w-10 text-primary-foreground" />
+              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center overflow-hidden">
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <User className="h-10 w-10 text-primary-foreground" />
+                )}
               </div>
               <button 
                 onClick={() => navigate('/edit-profile')}
@@ -236,7 +243,7 @@ export default function Profile() {
 
         {/* Version */}
         <p className="text-center text-xs text-muted-foreground">
-          KnockKnock v1.0.0 • Made with ❤️ for students
+          KnockKnock v1.0.0 •
         </p>
       </div>
     </Layout>

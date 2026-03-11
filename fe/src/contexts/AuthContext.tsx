@@ -1,11 +1,13 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { apiClient } from '@/lib/api';
+import type { ApiUser } from '@/types/api';
 
 export type UserRole = 'admin' | 'landlord' | 'tenant';
 
 interface User {
-  id: string;
+  _id?: string;
+  id?: string;
   email: string;
   fullName?: string;
   avatarUrl?: string;
@@ -171,8 +173,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { error: null };
-    } catch (err: any) {
-      return { error: err };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
   };
 
@@ -196,10 +198,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.token && data?.user) {
         apiClient.setToken(data.token);
         setSession(data.token);
-        setUser(data.user);
-        setRole(data.user.role as UserRole);
+        // Fetch the full profile so all fields (phone, university, etc.) are present
+        const profileRes = await apiClient.getProfile();
+        const fullUser = profileRes.data?.user ?? data.user;
+        setUser(fullUser);
+        setRole(fullUser.role as UserRole);
         // Load AI token balance for tenants after login
-        if (data.user.role === 'tenant') {
+        if (fullUser.role === 'tenant') {
           try {
             const tokenRes = await apiClient.getAiTokens();
             if (tokenRes.data) setAiTokens(tokenRes.data.tokens);
@@ -208,8 +213,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { error: null };
-    } catch (err: any) {
-      return { error: err };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
   };
 
@@ -248,8 +253,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Password changed successfully
       return { error: null };
-    } catch (err: any) {
-      return { error: err };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
   };
 

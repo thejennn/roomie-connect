@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -32,6 +32,7 @@ import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { mapApiRoomToUiRoom } from "@/utils/mappers";
+import type { Room } from "@/types";
 
 const AMENITY_ICONS: Record<string, React.ReactNode> = {
   "Điều hoà": <Zap className="h-4 w-4" />,
@@ -58,46 +59,26 @@ export default function RoomDetail() {
   const [hoverRating, setHoverRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const [room, setRoom] = useState<any>(null);
+  const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (id) {
-      fetchRoom();
-      checkIfSaved();
-    }
-  }, [id]);
-
-  const trackViewedRoom = (roomData: any) => {
+  const trackViewedRoom = useCallback((roomId: string) => {
     try {
-      if (!roomData || !roomData.id) return;
-      
-      const viewedRoomsDetail = JSON.parse(localStorage.getItem('viewedRoomsDetail') || '[]');
-      
-      // Remove if already exists (to update timestamp)
-      const filtered = viewedRoomsDetail.filter((r: any) => r.id !== roomData.id);
-      
-      // Add new entry with full data
-      const viewedRoom = {
-        id: roomData.id,
-        title: roomData.title || 'Phòng',
-        price: roomData.price || 0,
-        location: roomData.location || roomData.address || 'Không xác định',
-        image: roomData.images?.[0] || '/placeholder.png',
-        viewedAt: new Date().toISOString(),
-      };
-      
-      filtered.push(viewedRoom);
-      localStorage.setItem('viewedRoomsDetail', JSON.stringify(filtered));
+      const viewedRooms = JSON.parse(localStorage.getItem('viewedRooms') || '[]') as string[];
+      if (!viewedRooms.includes(roomId)) {
+        viewedRooms.push(roomId);
+        localStorage.setItem('viewedRooms', JSON.stringify(viewedRooms));
+      }
     } catch (error) {
       console.error('Error tracking viewed room:', error);
     }
-  };
+  }, []);
 
-  const fetchRoom = async () => {
+  const fetchRoom = useCallback(async () => {
+    if (!id) return;
     try {
       setLoading(true);
-      const { data, error } = await apiClient.getRoom(id!);
+      const { data, error } = await apiClient.getRoom(id);
 
       if (error) {
         throw new Error(error);
@@ -115,9 +96,9 @@ export default function RoomDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const checkIfSaved = async () => {
+  const checkIfSaved = useCallback(async () => {
     if (!isAuthenticated || !id) return;
     
     try {
@@ -128,7 +109,15 @@ export default function RoomDetail() {
     } catch (error) {
       console.error("Error checking favorite status:", error);
     }
-  };
+  }, [isAuthenticated, id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchRoom();
+      checkIfSaved();
+      trackViewedRoom(id);
+    }
+  }, [id, fetchRoom, checkIfSaved, trackViewedRoom]);
 
   const handleSaveRoom = async () => {
     // Redirect to login if not authenticated
@@ -187,6 +176,18 @@ export default function RoomDetail() {
       setIsSaving(false);
     }
   };
+  
+  // Vite environment key for Google Maps Embed API
+  const mapsKey = (import.meta.env as Record<string, any>).VITE_GOOGLE_MAPS_KEY as
+    | string
+    | undefined;
+
+  // Build embed URL when address and API key are available
+  const mapSrc = room?.address && mapsKey
+    ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(
+        mapsKey,
+      )}&q=${encodeURIComponent(room.address)}`
+    : null;
 
   if (loading) {
     return (
@@ -391,7 +392,7 @@ export default function RoomDetail() {
                   className="w-full h-full object-cover hover:scale-105 transition-transform"
                 />
               </div>
-              {room.images?.slice(1, 5).map((img: string, idx: number) => (
+              {room.images?.slice(1, 5).map((img, idx) => (
                 <div
                   key={idx}
                   className="hidden md:block aspect-square cursor-pointer"
@@ -432,17 +433,39 @@ export default function RoomDetail() {
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  {room.address}
+                    {room.address}
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  {timeAgo(new Date(room.created_at || room.postedAt))}
+                  {timeAgo(new Date(room.postedAt))}
                 </span>
                 <span className="flex items-center gap-1">
                   <Eye className="h-4 w-4" />
                   {room.views || 0} lượt xem
                 </span>
               </div>
+
+                {/* Google Maps Embed iframe: render directly under the address when address + key exist */}
+                {mapSrc ? (
+                  <div className="mt-3 w-full h-64 rounded overflow-hidden">
+                    <iframe
+                      title="Room location"
+                      src={mapSrc}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0, minHeight: 240 }}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                ) : (
+                  room.address && !mapsKey ? (
+                    <div className="mt-3 text-sm text-yellow-600">
+                      VITE_GOOGLE_MAPS_KEY chưa được cấu hình — bản đồ không hiển thị.
+                    </div>
+                  ) : null
+                )}
             </div>
 
             {/* Key Specs */}
@@ -467,7 +490,7 @@ export default function RoomDetail() {
             <div className="glass-card p-4 rounded-2xl">
               <h3 className="font-semibold mb-3">💡 Chi phí dịch vụ</h3>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {[
+                {([
                   {
                     icon: <Zap className="h-4 w-4" />,
                     label: "Điện",
@@ -495,7 +518,7 @@ export default function RoomDetail() {
                     label: "Gửi xe",
                     value: formatUtility(room.utilities.parking),
                   },
-                ].map((item) => (
+                ]).map((item) => (
                   <div
                     key={item.label}
                     className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"

@@ -29,6 +29,9 @@ import {
   Home,
   Check,
   Zap,
+  Users,
+  BookOpen,
+  Trash2,
 } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -46,7 +49,8 @@ interface ChatMessage {
   role: 'user' | 'bot';
   content: string;
   timestamp: Date;
-  results?: any[];
+  results?: Record<string, unknown>[];      // room results
+  roommates?: Record<string, unknown>[];    // roommate profile results
   filters?: {
     intent: string;
     max_price: number | null;
@@ -94,11 +98,20 @@ function formatPrice(price: number): string {
 // ---------------------------------------------------------------------------
 // Helper: get list of active amenities from room document
 // ---------------------------------------------------------------------------
-function getActiveAmenities(room: any): string[] {
+function getActiveAmenities(room: Record<string, unknown>): string[] {
   return Object.entries(AMENITY_LABELS)
     .filter(([key]) => room[key] === true)
     .map(([, label]) => label);
 }
+
+// Defined outside the component so it is not recreated on each render
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'bot',
+  content:
+    'Xin chào! Tôi là **KnockBot** — trợ lý AI của KnockKnock.\n\nTôi có thể giúp bạn:\n•  **Tìm phòng**: "Tìm phòng dưới 3 triệu ở Hòa Lạc"\n•  **Tìm bạn cùng phòng**: "Tìm bạn phòng ngủ sớm, không hút thuốc,.. "\n•  Hỏi đáp chung về tìm phòng trọ\n\nMỗi tin nhắn sẽ sử dụng 1 KnockCoin.',
+  timestamp: new Date(),
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -107,18 +120,11 @@ export default function TenantAIChat() {
   const navigate = useNavigate();
   const { aiTokens, setAiTokens, refreshAiTokens, isAuthenticated, loading: authLoading } = useAuth();
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'bot',
-      content:
-        'Xin chào! Tôi là **KnockBot** — trợ lý AI tìm phòng trọ.\n\nHãy mô tả phòng bạn cần, ví dụ:\n•  "Tìm phòng dưới 3 triệu ở Hòa Lạc"\n•  "Phòng có máy lạnh, gần Cầu Giấy"\n•  "Phòng trọ full nội thất quận 1"\n\nMỗi tin nhắn sẽ sử dụng 1 token.',
-      timestamp: new Date(),
-    },
-  ]);
+  // Chat state — prefilled from persisted history on mount
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Refs
@@ -133,11 +139,49 @@ export default function TenantAIChat() {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  // Fetch real token balance on mount
+  // Restore chat history from backend on mount
+  const loadHistory = useCallback(async () => {
+    try {
+      const { data, error } = await apiClient.getAiHistory(1, 100);
+      if (error || !data?.history?.length) return;
+
+      // API returns newest-first; reverse so oldest appears at top
+      const sorted = [...data.history].reverse();
+      const historyMessages: ChatMessage[] = [];
+
+      for (const item of sorted) {
+        // Each AiUsage record maps to one user + one bot bubble
+        historyMessages.push({
+          id: `hist-user-${item._id as string}`,
+          role: 'user',
+          content: item.prompt as string,
+          timestamp: new Date(item.createdAt as string),
+        });
+        historyMessages.push({
+          id: `hist-bot-${item._id as string}`,
+          role: 'bot',
+          content: item.response as string,
+          timestamp: new Date(item.createdAt as string),
+          // Restore room cards that were returned with this message
+          results: Array.isArray(item.roomResults) ? item.roomResults : [],
+          // Restore roommate cards
+          roommates: Array.isArray(item.roommateResults) ? item.roommateResults : [],
+        });
+      }
+
+      setMessages([WELCOME_MESSAGE, ...historyMessages]);
+    } catch (err) {
+      console.error('Failed to load AI chat history:', err);
+    }
+  }, []);
+
+  // Fetch token balance + restore history when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       refreshAiTokens();
+      loadHistory();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   // Auto-scroll to bottom when messages change
@@ -158,7 +202,7 @@ export default function TenantAIChat() {
 
     // Check token balance (client-side — backend also validates)
     if (aiTokens <= 0) {
-      toast.error('Bạn đã hết token AI. Vui lòng nạp thêm để tiếp tục.');
+      toast.error('Bạn đã hết KnockCoin. Vui lòng nạp thêm để tiếp tục.');
       return;
     }
 
@@ -175,19 +219,13 @@ export default function TenantAIChat() {
     setIsLoading(true);
 
     try {
-      const { data, error: apiError } = await apiClient.sendAiMessage(trimmed);
+      // Backend returns { success: boolean, data: string } | { success: false, error: string }
+      const { data: responseBody, error: networkError } = await apiClient.sendAiMessage(trimmed);
 
-      if (apiError) {
-        // Handle payment-required error specifically
-        if (apiError.includes('payment') || apiError.includes('token')) {
-          setError('Bạn đã hết token AI. Vui lòng nạp thêm.');
-          toast.error('Hết token AI');
-        } else {
-          setError(apiError);
-          toast.error('Lỗi: ' + apiError);
-        }
-
-        // Add error message to chat
+      // Network / fetch-level error (e.g. server unreachable)
+      if (networkError) {
+        setError(networkError);
+        toast.error('Lỗi kết nối: ' + networkError);
         const errMsg: ChatMessage = {
           id: `err-${Date.now()}`,
           role: 'bot',
@@ -198,20 +236,35 @@ export default function TenantAIChat() {
         return;
       }
 
-      if (data) {
-        // Update token balance from server response
-        if (typeof data.tokensRemaining === 'number') {
-          setAiTokens(data.tokensRemaining);
-        }
+      // Application-level error returned by backend
+      if (!responseBody?.success) {
+        const errText = responseBody?.error ?? 'Đã xảy ra lỗi không xác định.';
+        setError(errText);
+        toast.error(errText);
+        const errMsg: ChatMessage = {
+          id: `err-${Date.now()}`,
+          role: 'bot',
+          content: ` ${errText}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+        return;
+      }
 
-        // Add bot reply with room results
+      if (responseBody?.data) {
+        // Sync token display with server-authoritative value
+        if (typeof responseBody.tokensRemaining === 'number') {
+          setAiTokens(responseBody.tokensRemaining);
+        }
         const botMsg: ChatMessage = {
           id: `bot-${Date.now()}`,
           role: 'bot',
-          content: data.reply,
+          content: responseBody.data,
           timestamp: new Date(),
-          results: data.results || [],
-          filters: data.filters || undefined,
+          // Room cards with links rendered by the existing room-card JSX below
+          results: responseBody.rooms ?? [],
+          // Roommate profile cards
+          roommates: responseBody.roommates ?? [],
         };
         setMessages((prev) => [...prev, botMsg]);
       }
@@ -229,6 +282,25 @@ export default function TenantAIChat() {
       setIsLoading(false);
       // Refocus input
       inputRef.current?.focus();
+    }
+  };
+
+  // Clear chat history
+  const handleClearHistory = async () => {
+    if (!window.confirm('Bạn có chắc muốn xóa toàn bộ lịch sử chat? Hành động này không thể hoàn tác.')) return;
+    setIsClearingHistory(true);
+    try {
+      const { data, error: apiError } = await apiClient.clearAiHistory();
+      if (apiError || !data?.success) {
+        toast.error('Không thể xóa lịch sử. Vui lòng thử lại.');
+        return;
+      }
+      setMessages([WELCOME_MESSAGE]);
+      toast.success('Đã xóa lịch sử chat.');
+    } catch {
+      toast.error('Không thể xóa lịch sử. Vui lòng thử lại.');
+    } finally {
+      setIsClearingHistory(false);
     }
   };
 
@@ -307,14 +379,14 @@ export default function TenantAIChat() {
             </div>
           </div>
 
-          {/* Token Balance Badge + Recharge Button */}
+          {/* Token Balance Badge + Recharge + Clear History */}
           <div className="flex items-center gap-2">
             <Badge
               variant={aiTokens > 5 ? 'default' : aiTokens > 0 ? 'secondary' : 'destructive'}
               className="flex items-center gap-1 px-3 py-1"
             >
               <Coins className="h-3.5 w-3.5" />
-              <span>{aiTokens} token{aiTokens !== 1 ? 's' : ''}</span>
+              <span>{aiTokens} KnockCoin</span>
             </Badge>
             <Button
               onClick={() => navigate('/tenant/ai-payment')}
@@ -323,6 +395,20 @@ export default function TenantAIChat() {
             >
               <Zap className="h-3.5 w-3.5 mr-1" />
               Nạp xu
+            </Button>
+            <Button
+              onClick={handleClearHistory}
+              disabled={isClearingHistory || isLoading}
+              size="sm"
+              variant="ghost"
+              className="rounded-full px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              title="Xóa lịch sử chat"
+            >
+              {isClearingHistory ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </motion.div>
@@ -360,43 +446,51 @@ export default function TenantAIChat() {
                   {/* Room Result Cards */}
                   {msg.results && msg.results.length > 0 && (
                     <div className="mt-3 space-y-2">
-                      {msg.results.map((room: any) => (
+                      {msg.results.map((room) => {
+                        const id = room._id as string;
+                        const title = room.title as string;
+                        const images = room.images as string[] | undefined;
+                        const district = room.district as string | undefined;
+                        const address = room.address as string | undefined;
+                        const price = room.price as number;
+                        const area = room.area as number | undefined;
+                        return (
                         <Link
-                          key={room._id}
-                          to={`/rooms/${room._id}`}
+                          key={id}
+                          to={`/rooms/${id}`}
                           className="block"
                         >
                           <Card className="hover:shadow-md transition-shadow cursor-pointer border-border/60">
                             <CardContent className="p-3">
                               {/* Room image + info */}
                               <div className="flex gap-3">
-                                {room.images?.[0] && (
+                                {images?.[0] && (
                                   <img
-                                    src={room.images[0]}
-                                    alt={room.title}
+                                    src={images[0]}
+                                    alt={title}
                                     className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
                                   />
                                 )}
                                 <div className="flex-1 min-w-0">
                                   <h4 className="font-semibold text-sm line-clamp-1">
-                                    {room.title}
+                                    {title}
                                   </h4>
                                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                                     <MapPin className="h-3 w-3 flex-shrink-0" />
                                     <span className="line-clamp-1">
-                                      {room.district || room.address}
+                                      {district || address}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1 mt-1">
                                     <DollarSign className="h-3 w-3 text-primary flex-shrink-0" />
                                     <span className="text-sm font-bold text-primary">
-                                      {formatPrice(room.price)}
+                                      {formatPrice(price)}
                                     </span>
                                   </div>
-                                  {room.area && (
+                                  {area && (
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                                       <Home className="h-3 w-3 flex-shrink-0" />
-                                      <span>{room.area} m²</span>
+                                      <span>{area} m²</span>
                                     </div>
                                   )}
                                 </div>
@@ -430,7 +524,91 @@ export default function TenantAIChat() {
                             </CardContent>
                           </Card>
                         </Link>
-                      ))}
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Roommate Profile Cards */}
+                  {msg.roommates && msg.roommates.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {msg.roommates.map((profile: Record<string, unknown>) => {
+                        const userObj = profile.userId as Record<string, unknown> | null;
+                        const name = (userObj?.fullName as string) ?? 'Ẩn danh';
+                        const avatar = userObj?.avatarUrl as string | undefined;
+                        const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
+                        const budgetMin = profile.budgetMin as number | undefined;
+                        const budgetMax = profile.budgetMax as number | undefined;
+                        const budget =
+                          budgetMin && budgetMax
+                            ? `${(budgetMin / 1e6).toFixed(1)}–${(budgetMax / 1e6).toFixed(1)} triệu/tháng`
+                            : budgetMax
+                            ? `Dưới ${(budgetMax / 1e6).toFixed(1)} triệu/tháng`
+                            : null;
+                        const districts = (profile.preferredDistrict as string[]) ?? [];
+                        const bio = profile.bio as string | undefined;
+                        const prefs = (profile.preferences ?? {}) as Record<string, unknown>;
+                        return (
+                          <Link
+                            key={profile._id as string}
+                            to="/find-roommate"
+                            className="block"
+                          >
+                            <Card className="hover:shadow-md transition-shadow cursor-pointer border-border/60">
+                              <CardContent className="p-3">
+                                <div className="flex gap-3 items-start">
+                                  {/* Avatar */}
+                                  <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden bg-gradient-to-br from-accent to-primary flex items-center justify-center">
+                                    {avatar ? (
+                                      <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-primary-foreground font-bold text-sm">{initials}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-sm">{name}</h4>
+                                    {budget && (
+                                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                        <DollarSign className="h-3 w-3 flex-shrink-0" />
+                                        <span>{budget}</span>
+                                      </div>
+                                    )}
+                                    {districts.length > 0 && (
+                                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                                        <span className="line-clamp-1">{districts.join(', ')}</span>
+                                      </div>
+                                    )}
+                                    {bio && (
+                                      <div className="flex items-start gap-1 text-xs text-muted-foreground mt-0.5">
+                                        <BookOpen className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                                        <span className="line-clamp-2">{bio}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    <Users className="h-2.5 w-2.5 mr-0.5" />
+                                    Tìm bạn phòng
+                                  </Badge>
+                                  {prefs.smoking === 'no_smoke_ok' && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">Không hút thuốc</Badge>
+                                  )}
+                                  {prefs.pets === 'have_pet' && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">Nuôi thú cưng</Badge>
+                                  )}
+                                  {prefs.genderPreference && prefs.genderPreference !== 'no_preference' && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {prefs.genderPreference === 'male' ? 'Ưu tiên nam' : 'Ưu tiên nữ'}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
 

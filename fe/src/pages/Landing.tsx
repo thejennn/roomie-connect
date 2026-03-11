@@ -22,6 +22,51 @@ const features = [
 	},
 ];
 
+// ─── Domain types ─────────────────────────────────────────────────────────────
+type ModalMode = 'login' | 'register';
+type Role = 'tenant' | 'landlord' | 'admin';
+type RegisterRole = Exclude<Role, 'admin'>; // tenant | landlord only
+
+interface RoleOption {
+	value: Role;
+	label: string;
+	description: string;
+	icon: React.ElementType;
+	iconClass: string;
+}
+
+// Admin option only available on login — cannot self-register as admin
+const ALL_ROLE_OPTIONS: RoleOption[] = [
+	{
+		value: 'admin',
+		label: 'Admin',
+		description: 'Quản lý hệ thống',
+		icon: Shield,
+		iconClass: 'text-rose-500',
+	},
+	{
+		value: 'tenant',
+		label: 'Người tìm trọ',
+		description: 'Tìm phòng, làm bài quiz, kết nối bạn ở ghép',
+		icon: Users,
+		iconClass: 'text-primary',
+	},
+	{
+		value: 'landlord',
+		label: 'Chủ trọ',
+		description: 'Đăng tin, quản lý ví và tin đăng',
+		icon: Shield,
+		iconClass: 'text-emerald-500',
+	},
+];
+
+const REGISTER_ROLE_OPTIONS = ALL_ROLE_OPTIONS.filter(
+	(r): r is RoleOption & { value: RegisterRole } => r.value !== 'admin',
+);
+
+const DEFAULT_ROLE: RegisterRole = 'tenant';
+
+// ─── Animation variants ───────────────────────────────────────────────────────
 const fadeUp = {
 	hidden: { opacity: 0, y: 30 },
 	visible: { opacity: 1, y: 0 },
@@ -30,26 +75,33 @@ const fadeUp = {
 export default function Landing() {
 	const navigate = useNavigate();
 	const [roleModalOpen, setRoleModalOpen] = useState(false);
-	const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord'>('tenant');
-	const [modalMode, setModalMode] = useState<'login' | 'register'>('login');
+	const [selectedRole, setSelectedRole] = useState<Role>(DEFAULT_ROLE);
+	const [modalMode, setModalMode] = useState<ModalMode>('login');
 
-	const openRoleModal = (mode: 'login' | 'register') => {
+	const roleOptions = modalMode === 'login' ? ALL_ROLE_OPTIONS : REGISTER_ROLE_OPTIONS;
+
+	const openRoleModal = (mode: ModalMode) => {
 		setModalMode(mode);
+		// Reset to default when switching to register — admin is not a valid register role
+		if (mode === 'register' && selectedRole === 'admin') {
+			setSelectedRole(DEFAULT_ROLE);
+		}
 		setRoleModalOpen(true);
 	};
-	
+
 	const continueWithRole = () => {
 		setRoleModalOpen(false);
 		if (modalMode === 'login') {
 			navigate(`/auth/login?role=${selectedRole}`);
 		} else {
-			navigate(`/auth/register?role=${selectedRole}`);
+			// Type guard: prevent admin from being registered (domain invariant)
+			const registerRole: RegisterRole =
+				selectedRole === 'admin' ? DEFAULT_ROLE : selectedRole;
+			navigate(`/auth/register?role=${registerRole}`);
 		}
-		console.log(`Selected role: ${selectedRole}, Mode: ${modalMode}`);
 	};
-	console.log('Landing page rendered');
 	return (
-		<div className="min-h-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #00AA44 0%, #00AA44 100%)' }}>
+		<div className="min-h-screen overflow-hidden" style={{ background: 'hsl(142 72% 40%)' }}>
 			{/* Floating Shapes */}
 			<div className="fixed inset-0 overflow-hidden pointer-events-none">
 				<motion.div
@@ -58,7 +110,7 @@ export default function Landing() {
 					transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
 				/>
 				<motion.div
-					className="absolute bottom-40 left-10 w-80 h-80 rounded-full bg-white/5 blur-3xl"
+					className="absolute bottom-40 left-10 w-80 h-80 rounded-full bg-white/10 blur-3xl"
 					animate={{ y: [0, 20, 0], scale: [1, 1.05, 1] }}
 					transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
 				/>
@@ -68,16 +120,16 @@ export default function Landing() {
 			<header className="relative z-10 container py-6">
 				<nav className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<div className="h-10 w-10 rounded-full bg-white flex items-center justify-center shadow-lg">
-							<span className="text-[#00AA44] font-bold">KK</span>
+						<div className="h-10 w-10 rounded-full bg-white/20 border border-white/30 flex items-center justify-center">
+							<span className="text-white font-bold">KK</span>
 						</div>
 						<span className="font-bold text-2xl text-white">KnockKnock</span>
 					</div>
 					<div className="flex items-center gap-3">
-						<Button variant="ghost" className="hidden sm:inline-flex text-white hover:bg-white/20" onClick={() => openRoleModal('login')}>
+						<Button variant="ghost" className="hidden sm:inline-flex text-white hover:text-white hover:bg-white/20" onClick={() => openRoleModal('login')}>
 							Đăng nhập
 						</Button>
-						<Button className="rounded-full shadow-lg bg-white text-[#00AA44] hover:bg-gray-100" onClick={() => openRoleModal('register')}>
+						<Button className="rounded-full bg-white text-primary hover:bg-white/90 shadow-lg" onClick={() => openRoleModal('register')}>
 							Đăng ký
 						</Button>
 					</div>
@@ -95,7 +147,7 @@ export default function Landing() {
 					<motion.div
 						variants={fadeUp}
 						transition={{ duration: 0.5 }}
-						className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 border border-white/40 mb-6"
+						className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 border border-white/30 mb-6"
 					>
 						<Users className="h-4 w-4 text-white" />
 						<span className="text-sm font-medium text-white">5,000+ sinh viên đang sử dụng</span>
@@ -107,14 +159,14 @@ export default function Landing() {
 						className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 text-white"
 					>
 						Tìm trọ chưa bao giờ{' '}
-						<span className="text-[#FACF48]">"chill"</span>
+						<span className="text-yellow-300">"chill"</span>
 						{' '}đến thế
 					</motion.h1>
 
 					<motion.p
 						variants={fadeUp}
 						transition={{ duration: 0.5 }}
-						className="text-lg md:text-xl text-white/90 mb-8 max-w-xl mx-auto"
+						className="text-lg md:text-xl text-white/85 mb-8 max-w-xl mx-auto"
 					>
 						Kết nối với hàng nghìn sinh viên tại Hoà Lạc. 
 						Tìm phòng trọ ưng ý, bạn ở ghép hợp tính cách chỉ trong vài bước.
@@ -128,7 +180,7 @@ export default function Landing() {
 						<Button
 							size="lg"
 							asChild
-							className="w-full sm:w-auto rounded-full text-lg px-8 shadow-lg bg-white text-[#00AA44] hover:bg-gray-100"
+							className="w-full sm:w-auto rounded-full text-lg px-8 bg-white text-primary hover:bg-white/90 shadow-lg"
 						>
 							<Link to="/home">
 								Khám phá ngay
@@ -139,7 +191,7 @@ export default function Landing() {
 							size="lg"
 							variant="outline"
 							asChild
-							className="w-full sm:w-auto rounded-full text-lg px-8 bg-transparent border-2 border-white text-white hover:bg-white/10"
+							className="w-full sm:w-auto rounded-full text-lg px-8 bg-white text-primary hover:bg-white/90 shadow-lg"
 						>
 							<Link to="/auth/login?role=landlord">Đăng tin cho thuê</Link>
 						</Button>
@@ -155,24 +207,24 @@ export default function Landing() {
 				>
 					<p className="text-sm text-white/80 mb-4">Được tin dùng bởi sinh viên từ</p>
 					<div className="flex flex-wrap items-center justify-center gap-8">
-						<div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-lg">
-							<div className="h-8 w-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-								<span className="text-orange-500 font-bold text-xs">FPT</span>
+						<div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: 'hsl(142 72% 32%)' }}>
+							<div className="h-8 w-8 rounded-full bg-orange-500/30 flex items-center justify-center">
+								<span className="text-orange-300 font-bold text-xs">FPT</span>
 							</div>
-							<span className="font-medium text-gray-900">FPT University</span>
+							<span className="font-medium text-white">FPT University</span>
 						</div>
-						<div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-lg">
-							<div className="h-8 w-8 rounded-full bg-[#00AA44]/20 flex items-center justify-center">
-								<span className="text-[#00AA44] font-bold text-xs">VNU</span>
+						<div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: 'hsl(142 72% 32%)' }}>
+							<div className="h-8 w-8 rounded-full bg-blue-500/30 flex items-center justify-center">
+								<span className="text-blue-300 font-bold text-xs">VNU</span>
 							</div>
-							<span className="font-medium text-gray-900">ĐHQG Hà Nội</span>
+							<span className="font-medium text-white">ĐHQG Hà Nội</span>
 						</div>
 					</div>
 				</motion.div>
 			</section>
 
 			{/* Features */}
-			<section className="relative z-10 container py-20">
+			<section className="relative z-10 container py-20" style={{ color: 'white' }}>
 				<motion.div
 					initial={{ opacity: 0 }}
 					whileInView={{ opacity: 1 }}
@@ -187,13 +239,14 @@ export default function Landing() {
 							whileInView={{ opacity: 1, y: 0 }}
 							viewport={{ once: true }}
 							transition={{ delay: index * 0.1, duration: 0.5 }}
-							className="bg-white rounded-3xl p-8 hover:shadow-lg transition-shadow"
+							className="rounded-3xl p-8 hover:shadow-elevated transition-shadow border border-white/20"
+							style={{ background: 'hsl(142 72% 32%)' }}
 						>
-							<div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#00AA44] to-[#008833] flex items-center justify-center mb-6 shadow-md">
+							<div className="h-14 w-14 rounded-2xl gradient-bg flex items-center justify-center mb-6 shadow-card">
 								<feature.icon className="h-7 w-7 text-white" />
 							</div>
-							<h3 className="text-xl font-bold mb-2 text-gray-900">{feature.title}</h3>
-							<p className="text-gray-600">{feature.description}</p>
+							<h3 className="text-xl font-bold mb-2 text-white">{feature.title}</h3>
+							<p className="text-white/75">{feature.description}</p>
 						</motion.div>
 					))}
 				</motion.div>
@@ -206,18 +259,19 @@ export default function Landing() {
 					whileInView={{ opacity: 1, scale: 1 }}
 					viewport={{ once: true }}
 					transition={{ duration: 0.5 }}
-					className="bg-white rounded-3xl p-8 md:p-12 text-center shadow-lg"
+					className="rounded-3xl p-8 md:p-12 text-center border border-white/20"
+					style={{ background: 'hsl(142 72% 32%)' }}
 				>
-					<h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">
+					<h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
 						Sẵn sàng tìm bạn ở ghép?
 					</h2>
-					<p className="text-gray-600 mb-8 max-w-xl mx-auto">
+					<p className="text-white/75 mb-8 max-w-xl mx-auto">
 						Chỉ mất 3 phút để hoàn thành bài test tính cách và tìm người bạn ở ghép lý tưởng.
 					</p>
 					<Button
 						size="lg"
 						asChild
-						className="rounded-full text-lg px-8 shadow-lg bg-[#00AA44] text-white hover:bg-[#008833]"
+						className="rounded-full text-lg px-8 bg-white text-primary hover:bg-white/90 shadow-lg"
 					>
 						<Link to="/quiz">
 							Làm bài test ngay
@@ -231,12 +285,12 @@ export default function Landing() {
 			<footer className="relative z-10 container py-8 border-t border-white/20">
 				<div className="flex flex-col md:flex-row items-center justify-between gap-4">
 					<div className="flex items-center gap-2">
-						<div className="h-8 w-8 rounded-full bg-white flex items-center justify-center">
-							<span className="text-[#00AA44] font-bold text-sm">KK</span>
+						<div className="h-8 w-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center">
+							<span className="text-white font-bold text-sm">KK</span>
 						</div>
 						<span className="font-bold text-white">KnockKnock</span>
 					</div>
-					<p className="text-sm text-white/80">
+					<p className="text-sm text-white/70">
 						© 2026 KnockKnock. Phát triển bởi sinh viên, cho sinh viên.
 					</p>
 				</div>
@@ -251,36 +305,32 @@ export default function Landing() {
 							{modalMode === 'register' ? 'Chọn vai trò để đăng ký' : 'Chọn vai trò để đăng nhập'}
 						</h3>
 
-						{/* Role options */}
+						{/* Role options — data-driven, no hard-coded duplication */}
 						<div className="grid grid-cols-1 gap-3 mb-6">
-							{modalMode === 'login' && (
-								<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'admin' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-									<input type="radio" name="role" value="admin" checked={selectedRole === 'admin'} onChange={() => setSelectedRole('admin')} className="hidden" />
-									<Shield className="h-6 w-6 text-rose-500" />
+							{roleOptions.map(({ value, label, description, icon: Icon, iconClass }) => (
+								<label
+									key={value}
+									className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-colors ${
+										selectedRole === value
+											? 'border-primary bg-primary/5'
+											: 'border-border hover:bg-muted/50'
+									}`}
+								>
+									<input
+										type="radio"
+										name="role"
+										value={value}
+										checked={selectedRole === value}
+										onChange={() => setSelectedRole(value)}
+										className="hidden"
+									/>
+									<Icon className={`h-6 w-6 ${iconClass}`} />
 									<div>
-										<div className="font-medium">Admin</div>
-										<div className="text-sm text-muted-foreground">Quản lý hệ thống</div>
+										<div className="font-medium">{label}</div>
+										<div className="text-sm text-muted-foreground">{description}</div>
 									</div>
 								</label>
-							)}
-							<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'tenant' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-								<input type="radio" name="role" value="tenant" checked={selectedRole === 'tenant'} onChange={() => setSelectedRole('tenant')} className="hidden" />
-								<Users className="h-6 w-6 text-primary" />
-								<div>
-									<div className="font-medium">Người tìm trọ</div>
-									<div className="text-sm text-muted-foreground">Tìm phòng, làm bài quiz, kết nối bạn ở ghép</div>
-								</div>
-							</label>
-
-							<label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border ${selectedRole === 'landlord' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-								<input type="radio" name="role" value="landlord" checked={selectedRole === 'landlord'} onChange={() => setSelectedRole('landlord')} className="hidden" />
-								<Shield className="h-6 w-6 text-emerald-500" />
-								<div>
-									<div className="font-medium">Chủ trọ</div>
-									<div className="text-sm text-muted-foreground">Đăng tin, quản lý ví và tin đăng</div>
-								</div>
-							</label>
-
+							))}
 						</div>
 
 						<div className="flex items-center justify-end gap-3">

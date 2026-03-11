@@ -84,7 +84,7 @@ export default function AISearch() {
   const handleSend = async () => {
     if (!input.trim()) return;
     if (tokens <= 0) {
-      toast.error('Hết token! Vui lòng mua thêm để tiếp tục.');
+      toast.error('Hết KnockCoin! Vui lòng mua thêm để tiếp tục.');
       return;
     }
 
@@ -151,7 +151,7 @@ export default function AISearch() {
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted">
               <Coins className="h-4 w-4 text-amber-500" />
               <span className="font-semibold">{tokens}/20</span>
-              <span className="text-sm text-muted-foreground">tokens</span>
+              <span className="text-sm text-muted-foreground">KnockCoin</span>
             </div>
             <Button variant="outline" size="sm" className="rounded-full" onClick={() => toast.info('Tính năng đang phát triển')}>
               <Plus className="h-4 w-4 mr-1" />
@@ -293,7 +293,7 @@ export default function AISearch() {
             </div>
             {tokens <= 0 && (
               <p className="text-center text-sm text-destructive mt-2">
-                Bạn đã hết token! Mua thêm để tiếp tục sử dụng AI.
+                Bạn đã hết KnockCoin! Mua thêm để tiếp tục sử dụng AI.
               </p>
             )}
           </div>

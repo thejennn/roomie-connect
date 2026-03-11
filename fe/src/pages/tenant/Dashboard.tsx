@@ -19,7 +19,7 @@ import { formatCurrency } from '@/lib/utils';
 const quickStats = [
   { label: 'Phòng phù hợp', value: 45, icon: Home },
   { label: 'Bạn ở ghép tiềm năng', value: 12, icon: Users },
-  { label: 'Token AI còn lại', value: '18/20', icon: Sparkles },
+  { label: 'KnockCoin còn lại', value: '18/20', icon: Sparkles },
 ];
 
 const featuredRooms = [

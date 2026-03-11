@@ -1,3 +1,4 @@
+import path from "path";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -8,16 +9,29 @@ import {
   notFoundMiddleware,
 } from "./middleware/error.middleware";
 
-// Load environment variables
+
+// Load environment variables first so process.env is populated before use
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// cors() with no arguments allows all origins — safe for local development.
+// Tighten this in production via the FRONTEND_URL environment variable.
+app.use(cors({
+  origin: process.env.FRONTEND_URL || true,
+  credentials: false,
+}));
+
+// JSON body limit: 1 MB is generous for all normal API payloads.
+// File uploads (avatars) bypass this entirely because they use
+// multipart/form-data handled by multer — they never touch express.json().
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Serve uploaded files (avatars, etc.) as static assets
+app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
 
 // API Routes
 app.use("/api", routes);

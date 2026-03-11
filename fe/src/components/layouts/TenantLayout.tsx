@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -29,19 +30,38 @@ const navItems = [
   { label: 'Hồ sơ', href: '/tenant/profile', icon: User },
 ];
 
-function NavLink({ item, isActive }: { item: typeof navItems[0]; isActive: boolean }) {
+function NavLink({
+  item,
+  isActive,
+  avatarUrl,
+  fallbackLabel,
+}: {
+  item: typeof navItems[0];
+  isActive: boolean;
+  avatarUrl?: string;
+  fallbackLabel?: string;
+}) {
   const Icon = item.icon;
+  const isProfile = item.href === '/tenant/profile';
+
   return (
     <Link
       to={item.href}
       className={cn(
         'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
-        isActive 
-          ? 'bg-primary text-primary-foreground shadow-card' 
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        isActive
+          ? 'bg-primary text-primary-foreground shadow-card'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
-      <Icon className="h-5 w-5" />
+      {isProfile ? (
+        <Avatar className="h-5 w-5">
+          <AvatarImage src={avatarUrl} alt="avatar" />
+          <AvatarFallback className="text-[10px]">{fallbackLabel ?? 'U'}</AvatarFallback>
+        </Avatar>
+      ) : (
+        <Icon className="h-5 w-5" />
+      )}
       <span className="font-medium">{item.label}</span>
       {item.badge && (
         <Badge variant="secondary" className="ml-auto text-xs bg-accent text-accent-foreground">
@@ -93,23 +113,39 @@ export default function TenantLayout({ children }: TenantLayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 space-y-1">
             {navItems.map((item) => (
-              <NavLink 
-                key={item.href} 
-                item={item} 
+              <NavLink
+                key={item.href}
+                item={item}
                 isActive={location.pathname === item.href}
+                avatarUrl={user?.avatarUrl}
+                fallbackLabel={user?.fullName?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase()}
               />
             ))}
           </nav>
 
-          {/* Sign Out */}
-          <Button 
-            variant="ghost" 
-            className="justify-start gap-3 text-muted-foreground hover:text-destructive"
-            onClick={handleSignOut}
-          >
-            <LogOut className="h-5 w-5" />
-            Đăng xuất
-          </Button>
+          {/* User info + Sign Out */}
+          <div className="space-y-1 border-t border-border pt-4">
+            <div className="flex items-center gap-3 px-4 py-2">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarImage src={user?.avatarUrl} alt="avatar" />
+                <AvatarFallback className="text-xs">
+                  {user?.fullName?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{user?.fullName ?? 'Người dùng'}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-5 w-5" />
+              Đăng xuất
+            </Button>
+          </div>
         </div>
       </aside>
 
@@ -133,22 +169,38 @@ export default function TenantLayout({ children }: TenantLayoutProps) {
 
                 <nav className="flex-1 space-y-1">
                   {navItems.map((item) => (
-                    <NavLink 
-                      key={item.href} 
-                      item={item} 
+                    <NavLink
+                      key={item.href}
+                      item={item}
                       isActive={location.pathname === item.href}
+                      avatarUrl={user?.avatarUrl}
+                      fallbackLabel={user?.fullName?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase()}
                     />
                   ))}
                 </nav>
 
-                <Button 
-                  variant="ghost" 
-                  className="justify-start gap-3 text-muted-foreground hover:text-destructive"
-                  onClick={handleSignOut}
-                >
-                  <LogOut className="h-5 w-5" />
-                  Đăng xuất
-                </Button>
+                <div className="space-y-1 border-t border-border pt-4">
+                  <div className="flex items-center gap-3 px-4 py-2">
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarImage src={user?.avatarUrl} alt="avatar" />
+                      <AvatarFallback className="text-xs">
+                        {user?.fullName?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{user?.fullName ?? 'Người dùng'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="h-5 w-5" />
+                    Đăng xuất
+                  </Button>
+                </div>
               </div>
             </SheetContent>
           </Sheet>
@@ -159,14 +211,24 @@ export default function TenantLayout({ children }: TenantLayoutProps) {
             </div>
           </Link>
 
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            {notifications > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
-                {notifications}
-              </span>
-            )}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              {notifications > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
+                  {notifications}
+                </span>
+              )}
+            </Button>
+            <Link to="/tenant/profile">
+              <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-transparent hover:ring-primary transition-all">
+                <AvatarImage src={user?.avatarUrl} alt="avatar" />
+                <AvatarFallback className="text-xs gradient-bg text-primary-foreground">
+                  {user?.fullName?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? 'U'}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+          </div>
         </div>
       </header>
 
