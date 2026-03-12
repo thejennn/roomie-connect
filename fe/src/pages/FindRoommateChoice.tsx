@@ -1,21 +1,18 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
-import { Sparkles, Bot, Zap } from 'lucide-react';
+import { Sparkles, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
-import { LoginDialog } from '@/components/auth/LoginDialog';
 
 export default function FindRoommateChoice() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const [loginOpen, setLoginOpen] = useState(false);
 
   const goQuiz = () => navigate('/quiz');
 
   const handleStartQuiz = () => {
     if (!isAuthenticated) {
-      setLoginOpen(true);
+      navigate('/auth/login?returnTo=/quiz');
       return;
     }
     goQuiz();
@@ -54,12 +51,6 @@ export default function FindRoommateChoice() {
           </div>
         </div>
       </div>
-
-      <LoginDialog
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        onSuccess={goQuiz}
-      />
     </Layout>
   );
 }
