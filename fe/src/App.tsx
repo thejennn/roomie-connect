@@ -258,11 +258,6 @@ const App = () => (
             <Route path="/matches" element={<Matches />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/app-rating" element={<AppRating />} />
             <Route
               path="/edit-profile"
               element={
@@ -281,5 +276,4 @@ const App = () => (
 );
 
 export default App;
-
 
