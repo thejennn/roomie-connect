@@ -475,6 +475,7 @@ class ApiClient {
     return this.request<{
       viewing: ApiViewingRequest;
       payment: ApiPayment;
+      checkoutUrl?: string;
     }>(`/landlord/viewings/${id}/pay`, {
       method: 'POST',
     });
@@ -490,6 +491,11 @@ class ApiClient {
     });
   }
 
+  async requestLandlordRefund(id: string) {
+    return this.request<{ message: string; refund: ApiRefundRequest }>(
+      `/landlord/viewings/${id}/refund`,
+      { method: 'POST' },
+    );
   // Knock Coin endpoints
   async getCoinPackages() {
     return this.request<{ packages: any[] }>('/coin/packages');

@@ -21,6 +21,7 @@ export interface IPayment extends Document {
   viewingId: Types.ObjectId;
   amount: number;
   status: PaymentStatus;
+  orderCode?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +40,7 @@ const paymentSchema = new Schema<IPayment>(
       enum: ["pending", "success", "failed", "refunded"],
       default: "pending",
     },
+    orderCode: { type: Number, index: true },
   },
   { timestamps: true },
 );
@@ -126,6 +128,7 @@ export interface IViewingRequest extends Document {
   scheduledTime: Date;
   roomInfo: IRoomInfo;
   status: ViewingStatus;
+  rejectionReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -164,6 +167,7 @@ const viewingRequestSchema = new Schema<IViewingRequest>(
       default: "pending",
       index: true,
     },
+    rejectionReason: { type: String, default: undefined },
   },
   { timestamps: true },
 );

@@ -6,9 +6,14 @@ import {
   rejectViewing,
   payViewing,
   submitViewingDecision,
+  requestRefund,
+  handleViewingPayOSWebhook,
 } from "./landlord-viewing.controller";
 
 const router = Router();
+
+// PayOS webhook - no auth required
+router.post("/payos-webhook", handleViewingPayOSWebhook);
 
 router.use(authMiddleware, landlordOnly);
 
@@ -17,5 +22,6 @@ router.patch("/:id/approve", approveViewing);
 router.patch("/:id/reject", rejectViewing);
 router.post("/:id/pay", payViewing);
 router.post("/:id/decision", submitViewingDecision);
+router.post("/:id/refund", requestRefund);
 
 export default router;

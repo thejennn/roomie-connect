@@ -282,6 +282,10 @@ const App = () => (
             <Route path="/rate-app" element={<RatingPage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/support/contact" element={<ContactSupportPage />} />
+            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/matches" element={<Matches />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/profile" element={<Profile />} />
             <Route
               path="/quiz"
               element={

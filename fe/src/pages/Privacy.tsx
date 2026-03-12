@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowLeft, Eye, Phone, AlertTriangle } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ interface PrivacySetting {
   id: string;
   title: string;
   description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   enabled: boolean;
   action: string;
 }
