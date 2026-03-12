@@ -76,26 +76,6 @@ const AI_PACKAGES: AIPackage[] = [
   },
 ];
 
-const PAYMENT_METHODS: PaymentMethod[] = [
-  {
-    id: "credit_card",
-    name: "Thẻ Tín Dụng/Ghi Nợ",
-    icon: <CreditCard className="h-5 w-5" />,
-    description: "Visa, Mastercard, JCB",
-  },
-  {
-    id: "bank_transfer",
-    name: "Chuyển Khoản Ngân Hàng",
-    icon: <Building2 className="h-5 w-5" />,
-    description: "Chuyển khoản trực tiếp",
-  },
-  {
-    id: "mobile",
-    name: "Ví Điện Tử",
-    icon: <Smartphone className="h-5 w-5" />,
-    description: "Momo, ZaloPay, VNPay",
-  },
-];
 
 export default function AIPayment() {
   const navigate = useNavigate();
@@ -224,41 +204,8 @@ export default function AIPayment() {
               </div>
             </div>
 
-            {/* Payment Method Selection */}
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Phương thức thanh toán</h2>
-              <div className="space-y-3">
-                {PAYMENT_METHODS.map((method) => (
-                  <label
-                    key={method.id}
-                    className={cn(
-                      "glass-card p-4 rounded-xl cursor-pointer transition-all flex items-center gap-4",
-                      selectedPayment === method.id
-                        ? "ring-2 ring-primary bg-primary/5"
-                        : "hover:bg-muted"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_method"
-                      value={method.id}
-                      checked={selectedPayment === method.id}
-                      onChange={(e) => setSelectedPayment(e.target.value)}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-primary">{method.icon}</span>
-                        <h3 className="font-semibold">{method.name}</h3>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {method.description}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
+            {/* Payment Method Selection removed as requested */}
+
 
             {/* Terms & Conditions */}
             <label className="flex items-start gap-3 p-4 glass-card rounded-xl cursor-pointer">
@@ -301,10 +248,8 @@ export default function AIPayment() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phương thức</span>
-                  <span className="font-semibold">
-                    {PAYMENT_METHODS.find((m) => m.id === selectedPayment)?.name}
-                  </span>
+                  <span className="text-muted-foreground">Kênh thanh toán</span>
+                  <span className="font-semibold text-primary">PayOS (Tự động)</span>
                 </div>
               </div>
 
