@@ -439,6 +439,7 @@ class ApiClient {
     return this.request<{
       viewing: ApiViewingRequest;
       payment: ApiPayment;
+      checkoutUrl?: string;
     }>(`/landlord/viewings/${id}/pay`, {
       method: 'POST',
     });

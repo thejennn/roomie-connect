@@ -21,6 +21,7 @@ export interface IPayment extends Document {
   viewingId: Types.ObjectId;
   amount: number;
   status: PaymentStatus;
+  orderCode?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +40,7 @@ const paymentSchema = new Schema<IPayment>(
       enum: ["pending", "success", "failed", "refunded"],
       default: "pending",
     },
+    orderCode: { type: Number, index: true },
   },
   { timestamps: true },
 );

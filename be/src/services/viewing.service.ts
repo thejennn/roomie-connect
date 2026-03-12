@@ -247,8 +247,8 @@ export const viewingService = {
   },
 
   /**
-   * Landlord pays the viewing fee (400 000 VND).
-   * Creates a Payment record and transitions status → confirmed.
+   * Landlord initiates payment for the viewing fee (400 000 VND).
+   * Creates a pending Payment record with an orderCode for PayOS.
    */
   async payViewing(
     viewingId: string,
@@ -264,11 +264,35 @@ export const viewingService = {
         "Viewing must be in awaiting_payment status to pay",
       );
 
+    const orderCode = Number(
+      String(Date.now()).slice(-6) + Math.floor(Math.random() * 1000),
+    );
+
     const payment = await Payment.create({
       viewingId: viewing._id,
       amount: VIEWING_FEE,
-      status: "success",
+      status: "pending",
+      orderCode,
     });
+
+    return { viewing, payment };
+  },
+
+  /**
+   * Confirm viewing payment after PayOS webhook verification.
+   * Transitions viewing status awaiting_payment → confirmed.
+   */
+  async confirmViewingPayment(
+    orderCode: number,
+  ): Promise<{ viewing: IViewingRequest; payment: IPayment } | null> {
+    const payment = await Payment.findOne({ orderCode });
+    if (!payment || payment.status !== "pending") return null;
+
+    const viewing = await ViewingRequest.findById(payment.viewingId);
+    if (!viewing || viewing.status !== "awaiting_payment") return null;
+
+    payment.status = "success";
+    await payment.save();
 
     viewing.status = "confirmed";
     await viewing.save();

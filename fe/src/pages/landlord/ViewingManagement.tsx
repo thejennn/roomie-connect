@@ -430,6 +430,17 @@ export default function LandlordViewingPage() {
     if (user) {
       fetchViewings();
     }
+
+    // Handle PayOS return redirect params
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment");
+    if (paymentStatus === "success") {
+      toast.success("Thanh toán thành công! Lịch xem phòng đang được xử lý.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (paymentStatus === "cancel") {
+      toast.error("Bạn đã hủy thanh toán.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, [user, fetchViewings]);
 
   // -----------------------------------------------------------------------
@@ -490,9 +501,13 @@ export default function LandlordViewingPage() {
   const handlePay = async (viewing: ViewingItem) => {
     try {
       setActionLoadingId(viewing.id);
-      const { error } = await apiClient.payViewing(viewing.id);
+      const { data, error } = await apiClient.payViewing(viewing.id);
       if (error) {
         toast.error("Lỗi thanh toán");
+        return;
+      }
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
         return;
       }
       toast.success("Thanh toán thành công! Lịch xem phòng đã được xác nhận.");
