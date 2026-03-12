@@ -45,8 +45,11 @@ const AI_PACKAGES: AIPackage[] = [
     price: 49000,
     monthlyCredit: 200,
     features: [
+      "200 Knock Coin sử dụng ngay",
       "Giao dịch nhanh chóng",
       "Thanh toán an toàn",
+      "Chat AI gợi ý phòng phù hợp",
+      "Hỗ trợ giải đáp thắc mắc nhanh",
     ],
   },
   {
@@ -56,9 +59,12 @@ const AI_PACKAGES: AIPackage[] = [
     price: 99000,
     monthlyCredit: 450,
     features: [
-      "Tiết kiệm hơn",
+      "450 Knock Coin (Tiết kiệm 20%)",
       "Giao dịch nhanh chóng",
       "Thanh toán an toàn",
+      "Chat AI gợi ý phòng tân tiến",
+      "Gợi ý bạn ở ghép ưu tiên",
+      "Hỗ trợ ưu tiên 24/7",
     ],
     popular: true,
   },
@@ -69,18 +75,21 @@ const AI_PACKAGES: AIPackage[] = [
     price: 199000,
     monthlyCredit: 1000,
     features: [
-      "Giá ưu đãi tốt nhất",
-      "Giao dịch trực tiếp",
+      "1000 Knock Coin (Hời nhất)",
+      "Giao dịch nhanh chóng",
       "Thanh toán an toàn",
+      "Chat AI Roomie không giới hạn",
+      "Gợi ý bạn ở ghép tốt nhất",
+      "Hoàn tiền nếu không hài lòng",
+      "Giải đáp thắc mắc 24/7",
     ],
   },
 ];
 
-
 export default function AIPayment() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
-  
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = params.get("status");
@@ -116,7 +125,7 @@ export default function AIPayment() {
         toast.error(error || "Không thể tạo liên kết thanh toán");
         return;
       }
-      
+
       toast.success(`Chuyển hướng tới PayOS...`);
       window.location.href = data.checkoutUrl;
     } catch (error) {
@@ -151,7 +160,9 @@ export default function AIPayment() {
           <div className="lg:col-span-2 space-y-6">
             {/* Package List */}
             <div>
-              <h2 className="text-xl font-semibold mb-4">Danh sách gói dịch vụ</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                Danh sách gói dịch vụ
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {AI_PACKAGES.map((pkg) => (
                   <motion.div
@@ -162,7 +173,7 @@ export default function AIPayment() {
                       "glass-card p-6 rounded-2xl cursor-pointer transition-all relative overflow-hidden",
                       selectedPackage === pkg.id
                         ? "ring-2 ring-primary bg-primary/5"
-                        : "hover:shadow-lg"
+                        : "hover:shadow-lg",
                     )}
                   >
                     {pkg.popular && (
@@ -182,14 +193,15 @@ export default function AIPayment() {
                       <p className="text-3xl font-bold text-primary">
                         {formatPrice(pkg.price)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        
-                      </p>
+                      <p className="text-sm text-muted-foreground"></p>
                     </div>
 
                     <div className="space-y-2">
                       {pkg.features.map((feature, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm">
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 text-sm"
+                        >
                           <Check className="h-4 w-4 text-primary shrink-0" />
                           <span>{feature}</span>
                         </div>
@@ -205,7 +217,6 @@ export default function AIPayment() {
             </div>
 
             {/* Payment Method Selection removed as requested */}
-
 
             {/* Terms & Conditions */}
             <label className="flex items-start gap-3 p-4 glass-card rounded-xl cursor-pointer">
@@ -242,14 +253,18 @@ export default function AIPayment() {
                   <span className="font-semibold">{currentPackage.name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Knock Coin nhận được</span>
+                  <span className="text-muted-foreground">
+                    Knock Coin nhận được
+                  </span>
                   <span className="font-semibold">
                     {currentPackage.monthlyCredit} Coin
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Kênh thanh toán</span>
-                  <span className="font-semibold text-primary">PayOS (Tự động)</span>
+                  <span className="font-semibold text-primary">
+                    PayOS (Tự động)
+                  </span>
                 </div>
               </div>
 
@@ -318,26 +333,23 @@ export default function AIPayment() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
               {
-                q: "Tôi có thể nâng cấp gói bất kỳ lúc nào không?",
-                a: "Có, bạn có thể nâng cấp từ Free lên AI Plus hoặc AI Pro bất kỳ lúc nào. Phí sẽ được tính toán theo thời gian sử dụng.",
+                q: "Knock Coin dùng để làm gì?",
+                a: "Bạn có thể dùng Knock Coin để mở khóa thông tin liên lạc của các bạn ở ghép tiềm năng (50 Coin/người) hoặc sử dụng các tính năng AI cao cấp trong tương lai.",
               },
               {
-                q: "Gói AI Plus cung cấp bao lâu?",
-                a: "Gói AI Plus cung cấp dịch vụ trong 1 tháng. Gói AI Pro cung cấp dịch vụ trong 3 tháng với giá rẻ hơn so với mua 3 lần AI Plus.",
+                q: "Coin có thời hạn sử dụng không?",
+                a: "Không, Knock Coin của bạn sẽ được lưu giữ vĩnh viễn trong ví và không bị hết hạn cho đến khi bạn sử dụng hết.",
+              },
+              {
+                q: "Sau khi nạp bao lâu thì nhận được Coin?",
+                a: "Hệ thống nạp qua PayOS là hoàn toàn tự động. Thông thường bạn sẽ nhận được Coin ngay lập tức trong tài khoản sau khi giao dịch thành công.",
               },
               {
                 q: "Tôi có thể hoàn tiền không?",
-                a: "Chúng tôi cung cấp hoàn tiền 100% trong 7 ngày nếu bạn không hài lòng với dịch vụ.",
-              },
-              {
-                q: "Lượt trò chuyện AI không dùng hết có giữ được không?",
-                a: "Các lượt trò chuyện sẽ được reset khi gói hết hạn. Chúng tôi khuyến nghị sử dụng hết các lượt trong thời hạn gói.",
+                a: "Chúng tôi hỗ trợ hoàn tiền trong trường hợp lỗi giao dịch hoặc hệ thống. Vui lòng liên hệ bộ phận hỗ trợ để được giải quyết nhanh nhất.",
               },
             ].map((item, idx) => (
-              <div
-                key={idx}
-                className="glass-card p-4 rounded-xl space-y-2"
-              >
+              <div key={idx} className="glass-card p-4 rounded-xl space-y-2">
                 <h3 className="font-semibold">{item.q}</h3>
                 <p className="text-sm text-muted-foreground">{item.a}</p>
               </div>
