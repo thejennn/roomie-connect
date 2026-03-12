@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useMemo, useState, useEffect } from "react";
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Phone,
   MessageCircle,
   ArrowLeft,
   Users,
   UserPlus,
   Share2,
+  Lock,
 } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,32 @@ import { findMatches, getMatchLevel } from "@/utils/matching";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { LoginDialog } from "@/components/auth/LoginDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-function MatchCard({ match, index }: { match: MatchResult; index: number }) {
+function MatchCard({
+  match,
+  index,
+  locked,
+  onUnlock,
+  unlocking,
+}: {
+  match: MatchResult;
+  index: number;
+  locked: boolean;
+  onUnlock?: () => void;
+  unlocking: boolean;
+}) {
   const level = getMatchLevel(match.score);
 
   const levelColors = {
@@ -47,12 +71,18 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-      className="glass-card rounded-3xl p-5 hover:shadow-elevated transition-shadow"
+      transition={{ delay: index * 0.05 }}
+      onClick={locked ? onUnlock : undefined}
+      role={locked ? "button" : undefined}
+      tabIndex={locked ? 0 : undefined}
+      className={cn(
+        "relative glass-card rounded-3xl p-5 transition-shadow",
+        locked ? "cursor-pointer hover:shadow-elevated" : "hover:shadow-elevated",
+      )}
     >
       <div className="flex gap-4">
         {/* Avatar with Score Ring */}
-        <div className="relative flex-shrink-0">
+        <div className={cn("relative flex-shrink-0", locked && "blur-md select-none")}>
           <div
             className={cn(
               "absolute inset-0 rounded-full border-4",
@@ -88,7 +118,7 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
         </div>
 
         {/* Info */}
-        <div className="flex-1 min-w-0">
+        <div className={cn("flex-1 min-w-0", locked && "blur-md select-none")}>
           <div className="flex items-start justify-between gap-2 mb-1">
             <div>
               <h3 className="font-bold text-lg flex items-center gap-2">
@@ -127,56 +157,139 @@ function MatchCard({ match, index }: { match: MatchResult; index: number }) {
               onClick={handleContactZalo}
               className="flex-1 rounded-full"
               size="sm"
+              disabled={locked}
             >
               <MessageCircle className="h-4 w-4 mr-2" />
               Kết nối Zalo
             </Button>
-            <Button variant="outline" size="sm" className="rounded-full">
+            <Button variant="outline" size="sm" className="rounded-full" disabled={locked}>
               Xem thêm
             </Button>
           </div>
         </div>
       </div>
+
+      {locked && (
+        <div className="absolute inset-0 rounded-3xl flex items-center justify-center">
+          <div className="mx-4 w-full max-w-sm bg-background/70 backdrop-blur-md border border-border rounded-2xl p-4 text-center shadow-lg">
+            <div className="flex items-center justify-center gap-2 font-semibold">
+              <Lock className="h-4 w-4" />
+              Ứng viên bị khóa
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Click để mở khóa với <span className="font-semibold text-foreground">50 Knock Coin</span>
+            </p>
+            <div className="mt-3">
+              <Button type="button" className="rounded-full" onClick={onUnlock} disabled={unlocking}>
+                {unlocking ? "Đang mở..." : "Mở khóa (-50)"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
 
 export default function Matches() {
   const location = useLocation();
-  const preferences =
-    (location.state?.preferences as QuizPreferences) ||
-    DEFAULT_USER_PREFERENCES;
-  const [users, setUsers] = useState<User[]>([]);
+  const navigate = useNavigate();
+  const { isAuthenticated, user, refreshUser } = useAuth();
+  const [preferences, setPreferences] = useState<QuizPreferences>(
+    (location.state?.preferences as QuizPreferences) || DEFAULT_USER_PREFERENCES
+  );
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unlockedUserIds, setUnlockedUserIds] = useState<Set<string>>(new Set());
+  const [coinBalance, setCoinBalance] = useState<number>(user?.knockCoin ?? 0);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    const initData = async () => {
+      setLoading(true);
+      try {
+        const loadPreferences = async () => {
+          // If we have state, use it
+          if (location.state?.preferences) {
+            setPreferences(location.state.preferences);
+            return;
+          }
+          
+          // If not authenticated, reset to defaults
+          if (!isAuthenticated) {
+            setPreferences(DEFAULT_USER_PREFERENCES);
+            return;
+          }
+
+          const { data } = await apiClient.getMyRoommateProfile();
+          if (data?.profile?.preferences && Object.keys(data.profile.preferences).length > 0) {
+            setPreferences(data.profile.preferences as QuizPreferences);
+          } else {
+            setPreferences(DEFAULT_USER_PREFERENCES);
+          }
+        };
+
+        await Promise.all([
+          loadPreferences(),
+          fetchUsers(),
+          fetchUnlocks()
+        ]);
+      } catch (error) {
+        console.error("Error initializing matches data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initData();
+  }, [isAuthenticated, location.state?.preferences]);
+
+  useEffect(() => {
+    setCoinBalance(user?.knockCoin ?? 0);
+  }, [user?.knockCoin]);
+
+  const fetchUnlocks = async () => {
+    if (!isAuthenticated) {
+      setUnlockedUserIds(new Set());
+      return;
+    }
+    try {
+      const { data } = await apiClient.getRoommateUnlocks();
+      if (data) {
+        setUnlockedUserIds(new Set(data.unlockedUserIds || []));
+        setCoinBalance(data.knockCoin ?? user?.knockCoin ?? 0);
+      }
+      const { data, error } = await apiClient.getRoommateUnlocks();
+      if (error || !data) return;
+      setUnlockedUserIds(new Set(data.unlockedUserIds || []));
+      setCoinBalance(data.knockCoin ?? user?.knockCoin ?? 0);
+    };
+    loadUnlocks();
+  }, [isAuthenticated, user?.knockCoin]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       const { data, error } = await apiClient.getRoommateProfiles();
-
-      if (error) {
-        throw new Error(error);
-      }
-      const mappedUsers = (data?.profiles || []).map((profile) => {
-        const user = typeof profile.userId === 'object' ? profile.userId : null;
-        return {
-          id: user?._id || profile._id,
-          name: user?.fullName || "Người dùng",
-          avatar: user?.avatarUrl || "https://github.com/shadcn.png",
-          age: 20, // Tuổi mặc định vì backend chưa có
-          university:
-            profile.university || user?.university || "Đại học FPT",
-          major: "Dữ liệu chưa có",
-          year: 2,
-          bio: profile.bio || "Chưa có giới thiệu",
-          preferences: profile.preferences || {},
-          verified: user?.isVerified || false,
-        };
-      });
+      if (error) throw new Error(error);
+      
+      const mappedUsers = (data?.profiles || [])
+        .map((profile) => {
+          const u = typeof profile.userId === "object" ? profile.userId : null;
+          return {
+            id: u?._id || profile._id,
+            name: u?.fullName || "Người dùng",
+            avatar: u?.avatarUrl || "https://github.com/shadcn.png",
+            age: 20,
+            university: profile.university || u?.university || "Đại học FPT",
+            bio: profile.bio || "Chưa có giới thiệu",
+            preferences: profile.preferences || {},
+            verified: u?.isVerified || false,
+          };
+        })
+        .filter((mappedUser) => mappedUser.id !== user?._id && mappedUser.id !== user?.id);
       setUsers(mappedUsers);
     } catch (error) {
       console.error("Error fetching roommate profiles:", error);
@@ -189,6 +302,47 @@ export default function Matches() {
   const matches = findMatches(preferences, users);
   const goodMatches = matches.filter((m) => m.score >= 60);
   const hasGoodMatches = goodMatches.length > 0;
+
+  const defaultUnlockedId = useMemo(() => {
+    return matches[0]?.user?.id;
+  }, [matches]);
+
+  const isUnlocked = (id: string) => {
+    if (defaultUnlockedId && id === defaultUnlockedId) return true;
+    return unlockedUserIds.has(id);
+  };
+
+  const handleUnlock = async (targetUserId: string) => {
+    if (!isAuthenticated) {
+      setLoginOpen(true);
+      return;
+    }
+    if (isUnlocked(targetUserId)) return;
+
+    if ((coinBalance ?? 0) < 50) {
+      setTopUpOpen(true);
+      return;
+    }
+
+    setUnlockingId(targetUserId);
+    try {
+      const { data, error } = await apiClient.unlockRoommate(targetUserId);
+      if (error || !data) {
+        if ((error || "").toLowerCase().includes("not enough")) {
+          setTopUpOpen(true);
+        } else {
+          toast.error(error || "Không thể mở khóa");
+        }
+        return;
+      }
+      setUnlockedUserIds(new Set(data.unlockedUserIds || []));
+      setCoinBalance(data.knockCoin ?? 0);
+      toast.success(`Đã mở khóa (-${data.cost} Knock Coin)`);
+      refreshUser();
+    } finally {
+      setUnlockingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -217,7 +371,25 @@ export default function Matches() {
               Tìm thấy {matches.length} bạn ở ghép tiềm năng
             </p>
           </div>
+          <div className="ml-auto text-right">
+            <p className="text-xs text-muted-foreground">Knock Coin</p>
+            <p className="font-bold">{coinBalance ?? 0}</p>
+          </div>
         </div>
+
+        {!isAuthenticated && (
+          <div className="glass-card rounded-2xl p-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">Đăng nhập để mở khóa đầy đủ</p>
+              <p className="text-sm text-muted-foreground">
+                Bạn vẫn thấy 1 ứng viên gợi ý, nhưng cần đăng nhập để mở khóa thêm.
+              </p>
+            </div>
+            <Button className="rounded-full" onClick={() => setLoginOpen(true)}>
+              Đăng nhập
+            </Button>
+          </div>
+        )}
 
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-3">
@@ -247,7 +419,14 @@ export default function Matches() {
             {matches
               .filter((m) => m.score >= 60)
               .map((match, index) => (
-                <MatchCard key={match.user.id} match={match} index={index} />
+                <MatchCard
+                  key={match.user.id}
+                  match={match}
+                  index={index}
+                  locked={!isUnlocked(match.user.id)}
+                  onUnlock={() => handleUnlock(match.user.id)}
+                  unlocking={unlockingId === match.user.id}
+                />
               ))}
           </div>
         ) : (
@@ -286,7 +465,14 @@ export default function Matches() {
             {matches
               .filter((m) => m.score < 60)
               .map((match, index) => (
-                <MatchCard key={match.user.id} match={match} index={index} />
+                <MatchCard
+                  key={match.user.id}
+                  match={match}
+                  index={index}
+                  locked={!isUnlocked(match.user.id)}
+                  onUnlock={() => handleUnlock(match.user.id)}
+                  unlocking={unlockingId === match.user.id}
+                />
               ))}
           </div>
         )}
@@ -296,11 +482,85 @@ export default function Matches() {
           <p className="text-sm text-muted-foreground mb-3">
             Kết quả chưa chính xác?
           </p>
-          <Button variant="outline" asChild className="rounded-full">
-            <Link to="/quiz">Làm lại bài test</Link>
+          <Button 
+            variant="outline" 
+            className="rounded-full"
+            disabled={unlockingId === 'retake'}
+            onClick={async () => {
+              if (coinBalance < 50) {
+                toast.error("Bạn không đủ Knock Coin. Vui lòng nạp thêm!", {
+                  action: {
+                    label: "Nạp ngay",
+                    onClick: () => navigate("/tenant/ai-payment"),
+                  },
+                });
+                return;
+              }
+
+              setUnlockingId('retake');
+              try {
+                const { data, error } = await apiClient.payForQuizRetake();
+                if (error) {
+                  if (error.includes('HTTP 402') || error.includes('Not enough')) {
+                    toast.error('Bạn không đủ Knock Coin. Hãy nạp thêm để tiếp tục!', {
+                      action: {
+                        label: "Nạp ngay",
+                        onClick: () => navigate("/tenant/ai-payment"),
+                      },
+                    });
+                  } else {
+                    toast.error('Lỗi khi thực hiện giao dịch: ' + error);
+                  }
+                  return;
+                }
+                
+                if (data) {
+                  toast.success('Giao dịch thành công! Đang chuyển hướng...');
+                  refreshUser(); // Update coin balance in context
+                  setTimeout(() => navigate('/quiz'), 1500);
+                }
+              } catch (err) {
+                toast.error('Có lỗi xảy ra, vui lòng thử lại sau.');
+              } finally {
+                setUnlockingId(null);
+              }
+            }}
+          >
+            {unlockingId === 'retake' ? 'Đang xử lý...' : 'Làm lại bài test (50 Coin)'}
           </Button>
         </div>
       </div>
+
+      <LoginDialog
+        open={loginOpen}
+        onOpenChange={setLoginOpen}
+        onSuccess={() => {
+          // refresh unlocks after login
+          apiClient.getRoommateUnlocks().then(({ data }) => {
+            if (data) {
+              setUnlockedUserIds(new Set(data.unlockedUserIds || []));
+              setCoinBalance(data.knockCoin ?? 0);
+            }
+          });
+        }}
+      />
+
+      <AlertDialog open={topUpOpen} onOpenChange={setTopUpOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Không đủ Knock Coin</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn cần ít nhất 50 Knock Coin để mở khóa ứng viên này. Đi tới trang nạp coin ngay?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Để sau</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate("/tenant/ai-payment")}>
+              Nạp coin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
