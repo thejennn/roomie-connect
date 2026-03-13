@@ -39,7 +39,7 @@ We have provided a `render.yaml` file in the root directory which serves as a bl
    - `JWT_SECRET`: A random string for token generation
    - `PORT`: `5000`
    - `AI_PROVIDER`: `gemini`
-   - `GEMINI_API_KEY`: AIzaSyCRyoIfsaGDto3BUn1-esu6lRVG2iRYtDY
+   - `GEMINI_API_KEY`:AIzaSyBXO05EWEEqgnjgTrsrQXHmDAoXj3O392w (keep it secret; do not commit to git)
    - `GEMINI_MODEL`: (optional) default `gemini-2.5-flash`
 5. Click **Create Web Service**.
 
