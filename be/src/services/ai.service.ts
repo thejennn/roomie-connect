@@ -335,7 +335,21 @@ function callGeminiLLM(prompt: string): Promise<string> {
             console.error(
               `[LLM] Gemini non-200 status ${res.statusCode}: ${body.slice(0, 200)}`,
             );
-            reject(new Error(`Gemini returned HTTP ${res.statusCode}`));
+            let apiMessage = "";
+            try {
+              const parsed = JSON.parse(body) as any;
+              apiMessage =
+                typeof parsed?.error?.message === "string"
+                  ? (parsed.error.message as string).trim()
+                  : "";
+            } catch {
+              // ignore - keep generic error below
+            }
+            reject(
+              new Error(
+                `Gemini returned HTTP ${res.statusCode}${apiMessage ? `: ${apiMessage}` : ""}`,
+              ),
+            );
             return;
           }
 
