@@ -1,4 +1,5 @@
-import http from "http";
+﻿import http from "http";
+import https from "https";
 import { Room, IRoom } from "../models/Room";
 import { RoommateProfile, IRoommateProfile } from "../models/RoommateProfile";
 import { parseBudget } from "./budget.parser";
@@ -28,43 +29,43 @@ export interface RoomSearchFilters {
 }
 
 // ---------------------------------------------------------------------------
-// Room Filter Extraction — regex + keyword matching (zero LLM cost)
+// Room Filter Extraction â€” regex + keyword matching (zero LLM cost)
 // ---------------------------------------------------------------------------
 
 /**
- * Area filter: "30m2", "30 m²", "dưới 30m"
+ * Area filter: "30m2", "30 mÂ²", "dÆ°á»›i 30m"
  * Treated as an upper bound on room area.
  */
-const AREA_REGEX = /(\d+)\s*m(?:2|²|\s)/i;
+const AREA_REGEX = /(\d+)\s*m(?:2|Â²|\s)/i;
 
 /**
- * Amenity keyword → Mongoose boolean field name mapping.
+ * Amenity keyword â†’ Mongoose boolean field name mapping.
  */
 const AMENITY_MAP: { pattern: RegExp; field: string }[] = [
-  { pattern: /máy lạnh|điều hòa/i, field: "hasAirConditioner" },
-  { pattern: /giường/i, field: "hasBed" },
-  { pattern: /tủ quần|tủ đồ/i, field: "hasWardrobe" },
-  { pattern: /nóng lạnh|bình nước nóng|máy nước nóng/i, field: "hasWaterHeater" },
-  { pattern: /bếp|nhà bếp/i, field: "hasKitchen" },
-  { pattern: /tủ lạnh/i, field: "hasFridge" },
-  { pattern: /máy giặt riêng/i, field: "hasPrivateWashing" },
-  { pattern: /máy giặt chung/i, field: "hasSharedWashing" },
-  { pattern: /chỗ để xe|bãi đỗ xe|gửi xe/i, field: "hasParking" },
-  { pattern: /thang máy/i, field: "hasElevator" },
+  { pattern: /mĂ¡y láº¡nh|Ä‘iá»u hĂ²a/i, field: "hasAirConditioner" },
+  { pattern: /giÆ°á»ng/i, field: "hasBed" },
+  { pattern: /tá»§ quáº§n|tá»§ Ä‘á»“/i, field: "hasWardrobe" },
+  { pattern: /nĂ³ng láº¡nh|bĂ¬nh nÆ°á»›c nĂ³ng|mĂ¡y nÆ°á»›c nĂ³ng/i, field: "hasWaterHeater" },
+  { pattern: /báº¿p|nhĂ  báº¿p/i, field: "hasKitchen" },
+  { pattern: /tá»§ láº¡nh/i, field: "hasFridge" },
+  { pattern: /mĂ¡y giáº·t riĂªng/i, field: "hasPrivateWashing" },
+  { pattern: /mĂ¡y giáº·t chung/i, field: "hasSharedWashing" },
+  { pattern: /chá»— Ä‘á»ƒ xe|bĂ£i Ä‘á»— xe|gá»­i xe/i, field: "hasParking" },
+  { pattern: /thang mĂ¡y/i, field: "hasElevator" },
   { pattern: /camera/i, field: "hasSecurityCamera" },
-  { pattern: /phòng cháy|chữa cháy/i, field: "hasFireSafety" },
-  { pattern: /thú cưng|pet/i, field: "hasPetFriendly" },
-  { pattern: /sân phơi/i, field: "hasDryingArea" },
-  { pattern: /nội thất|full nội thất|đầy đủ nội thất/i, field: "isFullyFurnished" },
+  { pattern: /phĂ²ng chĂ¡y|chá»¯a chĂ¡y/i, field: "hasFireSafety" },
+  { pattern: /thĂº cÆ°ng|pet/i, field: "hasPetFriendly" },
+  { pattern: /sĂ¢n phÆ¡i/i, field: "hasDryingArea" },
+  { pattern: /ná»™i tháº¥t|full ná»™i tháº¥t|Ä‘áº§y Ä‘á»§ ná»™i tháº¥t/i, field: "isFullyFurnished" },
 ];
 
 /**
  * Extract structured room-search filters from a Vietnamese user message.
- * Location is NOT extracted here — handled by location.resolver.ts.
+ * Location is NOT extracted here â€” handled by location.resolver.ts.
  * Budget is delegated to budget.parser.ts.
  *
- * @param message — sanitised user message.
- * @param locationRegex — pre-resolved MongoDB regex from location resolver.
+ * @param message â€” sanitised user message.
+ * @param locationRegex â€” pre-resolved MongoDB regex from location resolver.
  */
 export function extractRoomFilters(
   message: string,
@@ -93,7 +94,7 @@ export function extractRoomFilters(
  * Hard cap of 5 results keeps the LLM prompt small and focused.
  *
  * Location scoping is determined by the pre-resolved locationRegex
- * from the location resolver — no inline location logic here.
+ * from the location resolver â€” no inline location logic here.
  */
 export async function queryRooms(
   filters: RoomSearchFilters,
@@ -111,7 +112,7 @@ export async function queryRooms(
     query[field] = true;
   }
 
-  // Location scope — always enforced via resolved regex
+  // Location scope â€” always enforced via resolved regex
   query.$and = [
     {
       $or: [
@@ -152,7 +153,7 @@ export async function queryRoommates(
     query.budgetMin = { $lte: filters.maxBudget };
   }
 
-  // Preference filters — use $in so multiple acceptable enum values can match
+  // Preference filters â€” use $in so multiple acceptable enum values can match
   if (filters.smoking?.length) {
     query["preferences.smoking"] = { $in: filters.smoking };
   }
@@ -190,24 +191,23 @@ export async function queryRoommates(
 }
 
 // ---------------------------------------------------------------------------
-// Local LLM Call (Ollama)
+// LLM Call (Gemini or Ollama)
 // ---------------------------------------------------------------------------
+
+type AIProvider = "gemini" | "ollama";
+
+function getAIProvider(): AIProvider {
+  const raw = (process.env.AI_PROVIDER || "gemini").toLowerCase().trim();
+  return raw === "ollama" ? "ollama" : "gemini";
+}
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5:7b-instruct";
 
-/**
- * Call the local Ollama LLM via HTTP and return the generated text.
- * Uses Node built-in http — zero extra dependencies.
- *
- * Safeguards:
- * - Non-200 HTTP status → explicit error with status code + body snippet.
- * - Malformed JSON → explicit parse error.
- * - Missing or empty `response` field → explicit error (prevents saving undefined
- *   to Mongoose and avoids downstream validation failures).
- * - Returned value is always a non-empty string or the promise rejects.
- */
-export function callLocalLLM(prompt: string): Promise<string> {
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+function callOllamaLLM(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = new URL("/api/generate", OLLAMA_BASE_URL);
     const payload = JSON.stringify({
@@ -215,13 +215,15 @@ export function callLocalLLM(prompt: string): Promise<string> {
       prompt,
       stream: false,
       options: {
-        temperature: 0.4,   // ổn định hơn cho hệ thống tìm trọ
+        temperature: 0.4,
         top_p: 0.9,
-        num_predict: 400,   // giới hạn token output
+        num_predict: 400,
       },
     });
 
-    console.log(`[LLM] Sending request to ${OLLAMA_BASE_URL} model=${OLLAMA_MODEL}`);
+    console.log(
+      `[LLM] provider=ollama base=${OLLAMA_BASE_URL} model=${OLLAMA_MODEL}`,
+    );
 
     const req = http.request(
       {
@@ -229,7 +231,7 @@ export function callLocalLLM(prompt: string): Promise<string> {
         port: url.port,
         path: url.pathname,
         method: "POST",
-        timeout: 5000, // safeguard timeout 5s
+        timeout: 8000,
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(payload),
@@ -241,42 +243,140 @@ export function callLocalLLM(prompt: string): Promise<string> {
         res.on("end", () => {
           const body = Buffer.concat(chunks).toString();
 
-          // Safeguard A1: reject on non-200 HTTP status
           if (res.statusCode !== 200) {
-            console.error(`[LLM] Non-200 status ${res.statusCode}: ${body.slice(0, 200)}`);
+            console.error(
+              `[LLM] Ollama non-200 status ${res.statusCode}: ${body.slice(0, 200)}`,
+            );
             reject(new Error(`Ollama returned HTTP ${res.statusCode}`));
             return;
           }
 
-          // Safeguard A2: reject on unparseable JSON
           let data: { response?: unknown };
           try {
             data = JSON.parse(body) as { response?: unknown };
           } catch {
-            console.error(`[LLM] Failed to parse JSON response: ${body.slice(0, 200)}`);
+            console.error(`[LLM] Ollama invalid JSON: ${body.slice(0, 200)}`);
             reject(new Error("Ollama returned invalid JSON"));
             return;
           }
 
-          // Safeguard A3: ensure response field is a non-empty string
           const text = typeof data.response === "string" ? data.response.trim() : "";
           if (!text) {
-            console.error(`[LLM] response field missing or empty in: ${body.slice(0, 200)}`);
+            console.error(
+              `[LLM] Ollama empty response field: ${body.slice(0, 200)}`,
+            );
             reject(new Error("Ollama returned an empty response field"));
             return;
           }
 
-          console.log(`[LLM] Response received (${text.length} chars)`);
           resolve(text);
         });
       },
     );
 
     req.on("error", (err) => {
-      console.error(`[LLM] Connection error: ${(err as Error).message}`);
+      console.error(`[LLM] Ollama connection error: ${(err as Error).message}`);
       reject(err);
     });
     req.write(payload);
     req.end();
   });
 }
+
+function callGeminiLLM(prompt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!GEMINI_API_KEY) {
+      reject(new Error("Missing GEMINI_API_KEY"));
+      return;
+    }
+
+    const url = new URL(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        GEMINI_MODEL,
+      )}:generateContent`,
+    );
+    url.searchParams.set("key", GEMINI_API_KEY);
+
+    const payload = JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.4,
+        topP: 0.9,
+        maxOutputTokens: 400,
+      },
+    });
+
+    console.log(`[LLM] provider=gemini model=${GEMINI_MODEL}`);
+
+    const req = https.request(
+      {
+        hostname: url.hostname,
+        port: 443,
+        path: `${url.pathname}${url.search}`,
+        method: "POST",
+        timeout: 12000,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks).toString();
+
+          if (res.statusCode !== 200) {
+            console.error(
+              `[LLM] Gemini non-200 status ${res.statusCode}: ${body.slice(0, 200)}`,
+            );
+            reject(new Error(`Gemini returned HTTP ${res.statusCode}`));
+            return;
+          }
+
+          let data: any;
+          try {
+            data = JSON.parse(body);
+          } catch {
+            console.error(`[LLM] Gemini invalid JSON: ${body.slice(0, 200)}`);
+            reject(new Error("Gemini returned invalid JSON"));
+            return;
+          }
+
+          const text =
+            data?.candidates?.[0]?.content?.parts?.[0]?.text &&
+            typeof data.candidates[0].content.parts[0].text === "string"
+              ? (data.candidates[0].content.parts[0].text as string).trim()
+              : "";
+
+          if (!text) {
+            console.error(`[LLM] Gemini empty response: ${body.slice(0, 200)}`);
+            reject(new Error("Gemini returned an empty response field"));
+            return;
+          }
+
+          resolve(text);
+        });
+      },
+    );
+
+    req.on("error", (err) => {
+      console.error(`[LLM] Gemini connection error: ${(err as Error).message}`);
+      reject(err);
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+// Backward-compat: keep the export name used by the rest of the backend.
+export function callLocalLLM(prompt: string): Promise<string> {
+  const provider = getAIProvider();
+  return provider === "ollama" ? callOllamaLLM(prompt) : callGeminiLLM(prompt);
+}
+
