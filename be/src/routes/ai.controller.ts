@@ -1,6 +1,8 @@
 ﻿import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { User } from "../models/User";
+import type { IUser } from "../models/User";
+import type { HydratedDocument } from "mongoose";
 import { AiUsage } from "../models/AiUsage";
 import { IRoom } from "../models/Room";
 import { IRoommateProfile } from "../models/RoommateProfile";
@@ -17,8 +19,15 @@ import {
   buildGeneralQAPrompt,
 } from "../services/prompt.factory";
 import { classifyIntent, Intent } from "../services/intent.service";
-import { resolveSupportedLocations, ALL_WARDS_REGEX } from "../services/location.resolver";
-import { loadMemory, loadRoommateMemory, updateMemory, MemoryUpdate } from "../services/memory.service";
+import {
+  resolveSupportedLocations,
+} from "../services/location.resolver";
+import {
+  loadMemory,
+  loadRoommateMemory,
+  updateMemory,
+  MemoryUpdate,
+} from "../services/memory.service";
 import { shouldChargeToken } from "../services/token.service";
 import { ResponseType } from "../services/response.types";
 import {
@@ -46,41 +55,12 @@ function emitLog(log: AIChatLog): void {
   console.log(`[KnockBot] ${JSON.stringify(log)}`);
 }
 
-// ---------------------------------------------------------------------------
-// Helper: send a terminal response (VALIDATION / OUT_OF_SCOPE / CLARIFICATION)
-// ---------------------------------------------------------------------------
-function sendEarlyExit(
-  res: Response,
-  opts: {
-    reply: string;
-    responseType: ResponseType;
-    userId: string;
-    message: string;
-    detectedIntent: Intent;
-    tokensRemaining?: number;
-    startTime: number;
-  },
-): void {
-  emitLog({
-    userId: opts.userId,
-    message: opts.message,
-    detectedIntent: opts.detectedIntent,
-    llmUsed: false,
-    hasResults: false,
-    knockCoinCharged: false,
-    responseType: opts.responseType,
-    success: true,
-    durationMs: Date.now() - opts.startTime,
-  });
-  res.json({
-    success: true,
-    data: opts.reply,
-    rooms: [],
-    roommates: [],
-    responseType: opts.responseType,
-    tokensRemaining: opts.tokensRemaining,
-  });
-}
+// Response types that should NOT save to AiUsage or increment the free counter.
+// These are purely client-side errors or config/validation issues.
+const NON_COUNTABLE_TYPES: ReadonlySet<ResponseType> = new Set([
+  ResponseType.VALIDATION,
+  ResponseType.SYSTEM_ERROR,
+]);
 
 // ---------------------------------------------------------------------------
 // POST /api/ai/chat â€” Main AI Pipeline (State Machine)
@@ -123,8 +103,14 @@ export async function handleChat(
   let llmUsed = false;
   let hasResults = false;
   let knockCoinCharged = false;
-  let responseType: ResponseType = ResponseType.SYSTEM_ERROR; // safe default
+  let responseType: ResponseType = ResponseType.SYSTEM_ERROR;
   let sanitized = "";
+  let reply = "";
+  let rooms: IRoom[] = [];
+  let roommates: IRoommateProfile[] = [];
+  const memoryUpdates: MemoryUpdate = {};
+  // user is set after DB lookup; we need it in the final block
+  let user: HydratedDocument<IUser> | null = null;
 
   try {
     const { message } = req.body ?? {};
@@ -138,20 +124,15 @@ export async function handleChat(
           "Báº¡n cĂ³ thá»ƒ nháº­p ná»™i dung cáº§n há»— trá»£ khĂ´ng? " +
           "VĂ­ dá»¥: 'TĂ¬m phĂ²ng á»Ÿ Tháº¡ch HĂ²a dÆ°á»›i 3 triá»‡u' hoáº·c 'TĂ¬m báº¡n ghĂ©p phĂ²ng khu vá»±c TĂ¢n XĂ£'.",
         responseType: ResponseType.VALIDATION,
-        userId, message: "", detectedIntent: "UNKNOWN",
-        startTime,
       });
       return;
     }
 
-    // Strip HTML/script tags (prompt-injection / log-injection prevention)
     sanitized = message.replace(/<[^>]*>/g, "").trim().slice(0, 2000);
     if (!sanitized) {
       sendEarlyExit(res, {
         reply: "Tin nháº¯n khĂ´ng há»£p lá»‡. Báº¡n vui lĂ²ng nháº­p láº¡i ná»™i dung cáº§n há»— trá»£ nhĂ©!",
         responseType: ResponseType.VALIDATION,
-        userId, message: "", detectedIntent: "UNKNOWN",
-        startTime,
       });
       return;
     }
@@ -164,7 +145,13 @@ export async function handleChat(
       res.status(404).json({ success: false, error: "User not found" });
       return;
     }
-    if (!user.aiTokens || user.aiTokens.tokens <= 0) {
+
+    const FREE_CHAT_LIMIT = 2;
+    const COIN_COST = 5;
+    const isFree = (user.aiFreeChatUsed ?? 0) < FREE_CHAT_LIMIT;
+    const cost = isFree ? 0 : COIN_COST;
+
+    if (!isFree && user.knockCoin < cost) {
       res.status(402).json({
         success: false,
         error: "Báº¡n Ä‘Ă£ háº¿t KnockCoin. Vui lĂ²ng náº¡p thĂªm Ä‘á»ƒ tiáº¿p tá»¥c.",
@@ -230,12 +217,11 @@ export async function handleChat(
         responseType = ResponseType.DB_SUCCESS;
         hasResults = true;
         llmUsed = true;
-        reply = await callLocalLLM(buildRoomPrompt(rooms, sanitized));
-      }
-
-      // Memory updates for FIND_ROOM
-      if (locResult.wards.length === 1) memoryUpdates.location = locResult.wards[0];
-      if (filters.maxPrice) memoryUpdates.budget = filters.maxPrice;
+        reply = await callLocalLLM(buildSmallTalkPrompt(sanitized));
+        responseType = reply
+          ? ResponseType.LLM_SUCCESS
+          : ResponseType.SYSTEM_ERROR;
+        hasResults = !!reply;
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ FIND_ROOMMATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     } else if (detectedIntent === "FIND_ROOMMATE") {
@@ -278,20 +264,18 @@ export async function handleChat(
           locResult.wards.join(" vĂ  ") +
           ". Báº¡n thá»­ Ä‘iá»u chá»‰nh khu vá»±c, ngĂ¢n sĂ¡ch hoáº·c yĂªu cáº§u lá»‘i sá»‘ng nhĂ©!";
       } else {
-        responseType = ResponseType.DB_SUCCESS;
-        hasResults = true;
+        const memory = await loadMemory(userId);
+        const scopedMemory = memory
+          ? { location: memory.location, budget: memory.budget }
+          : null;
         llmUsed = true;
-        reply = await callLocalLLM(buildRoommatePrompt(roommates, sanitized));
-      }
-
-      // Memory updates for FIND_ROOMMATE
-      if (criteria.district) memoryUpdates.location = criteria.district;
-      if (criteria.maxBudget) memoryUpdates.budget = criteria.maxBudget;
-      if (criteria.genderPreference) memoryUpdates.genderPreference = criteria.genderPreference;
-      memoryUpdates.roommatePreferences = {};
-      if (criteria.smoking) {
-        memoryUpdates.roommatePreferences.smoking =
-          criteria.smoking.includes("no_smoke_ok") ? "no" : "yes";
+        reply = await callLocalLLM(
+          buildGeneralQAPrompt(sanitized, scopedMemory),
+        );
+        responseType = reply
+          ? ResponseType.LLM_SUCCESS
+          : ResponseType.SYSTEM_ERROR;
+        hasResults = !!reply;
       }
       if (criteria.sleepTime) {
         memoryUpdates.roommatePreferences.sleepHabit = criteria.sleepTime;
@@ -329,9 +313,19 @@ export async function handleChat(
       responseType = ResponseType.SYSTEM_ERROR;
       console.error(`[KnockBot] Empty reply â€” userId=${userId} intent=${detectedIntent}`);
       emitLog({
-        userId, message: sanitized, detectedIntent,
-        llmUsed, hasResults: false, knockCoinCharged: false,
-        responseType, success: false, durationMs: Date.now() - startTime,
+        userId,
+        message: sanitized,
+        detectedIntent,
+        llmUsed,
+        hasResults: false,
+        knockCoinCharged: false,
+        responseType,
+        success: false,
+        durationMs: Date.now() - startTime,
+      });
+      res.status(500).json({
+        success: false,
+        error: "AI không trả lời được. Vui lòng thử lại.",
       });
       res.status(500).json({ success: false, error: "AI khĂ´ng tráº£ lá»i Ä‘Æ°á»£c. Vui lĂ²ng thá»­ láº¡i." });
       return;
@@ -348,7 +342,22 @@ export async function handleChat(
     if (charge) {
       user.aiTokens.tokens = Math.max(0, user.aiTokens.tokens - 1);
       await user.save();
-      knockCoinCharged = true;
+
+      // Persist to AiUsage so history loads correctly on page reload
+      await AiUsage.create({
+        userId,
+        prompt: sanitized,
+        response: reply,
+        tokensUsed: knockCoinCharged ? cost : 0,
+        intent: detectedIntent,
+        llmUsed,
+        responseType,
+        roomResults: rooms.length > 0 ? rooms : undefined,
+        roommateResults: roommates.length > 0 ? roommates : undefined,
+      });
+
+      // Update memory (fire-and-forget, only relevant for room/roommate intents)
+      updateMemory(userId, detectedIntent, memoryUpdates).catch(() => {});
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -356,11 +365,11 @@ export async function handleChat(
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     await AiUsage.create({
       userId,
-      prompt: sanitized,
-      response: reply,
-      tokensUsed: charge ? 1 : 0,
-      intent: detectedIntent,
+      message: sanitized,
+      detectedIntent,
       llmUsed,
+      hasResults,
+      knockCoinCharged,
       responseType,
       roomResults: rooms.length > 0 ? rooms : undefined,
       roommateResults: roommates.length > 0 ? roommates : undefined,
@@ -386,18 +395,22 @@ export async function handleChat(
       rooms,
       roommates,
       responseType,
-      tokensRemaining: user.aiTokens.tokens,
+      tokensRemaining: user.knockCoin,
     });
-
   } catch (error: unknown) {
     // SYSTEM_ERROR - genuine exception (DB crash, network, unexpected throw)
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`[KnockBot] SYSTEM_ERROR userId=${userId}: ${msg}`);
 
     emitLog({
-      userId, message: sanitized, detectedIntent,
-      llmUsed, hasResults, knockCoinCharged: false,
-      responseType: ResponseType.SYSTEM_ERROR, success: false,
+      userId,
+      message: sanitized,
+      detectedIntent,
+      llmUsed,
+      hasResults,
+      knockCoinCharged: false,
+      responseType: ResponseType.SYSTEM_ERROR,
+      success: false,
       durationMs: Date.now() - startTime,
     });
 

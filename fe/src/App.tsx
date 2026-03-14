@@ -3,7 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import FindRoom from "./pages/FindRoom";
@@ -26,6 +32,7 @@ import LoginPage from "./pages/auth/Login";
 import RegisterPage from "./pages/auth/Register";
 import ForgotPasswordPage from "./pages/auth/ForgotPassword";
 import ChangePasswordPage from "./pages/auth/ChangePassword";
+import ScrollToTop from "./components/ScrollToTop";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import TenantAIChat from "./pages/tenant/AIChat";
 import TenantAIPayment from "./pages/tenant/AIPayment";
@@ -44,7 +51,12 @@ import LandlordProfile from "./pages/landlord/Profile";
 import CreatePost from "./pages/landlord/CreatePost";
 import LandlordSubscription from "./pages/landlord/Subscription";
 import LandlordViewingPage from "./pages/landlord/ViewingManagement";
-
+// import ContractManagement from "./pages/landlord/ContractManagement";
+import History from "./pages/History";
+import Notifications from "./pages/Notifications";
+import Privacy from "./pages/Privacy";
+import Support from "./pages/Support";
+import AppRating from "./pages/AppRating";
 
 const queryClient = new QueryClient();
 
@@ -56,8 +68,14 @@ function ProtectedRoute({
   role?: "tenant" | "landlord" | "admin";
 }) {
   const auth = useAuth();
+  const location = useLocation();
+
   if (auth.loading) return <div className="container py-8">Loading...</div>;
-  if (!auth.user) return <Navigate to="/auth/login" replace />;
+  if (!auth.user) {
+    return (
+      <Navigate to={`/auth/login?returnTo=${location.pathname}`} replace />
+    );
+  }
   if (role && auth.role !== role && auth.role !== "admin") {
     return <div className="container py-8">Không có quyền truy cập</div>;
   }
@@ -71,12 +89,19 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/register" element={<RegisterPage />} />
-            <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/auth/change-password" element={<ChangePasswordPage />} />
+            <Route
+              path="/auth/forgot-password"
+              element={<ForgotPasswordPage />}
+            />
+            <Route
+              path="/auth/change-password"
+              element={<ChangePasswordPage />}
+            />
 
             <Route path="/home" element={<Home />} />
             <Route path="/find-room" element={<FindRoom />} />
@@ -246,7 +271,10 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route
+              path="/admin"
+              element={<Navigate to="/admin/dashboard" replace />}
+            />
 
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/notifications" element={<NotificationPage />} />
@@ -258,6 +286,43 @@ const App = () => (
             <Route path="/matches" element={<Matches />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/profile" element={<Profile />} />
+            <Route
+              path="/quiz"
+              element={
+                <ProtectedRoute>
+                  <Quiz />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/matches"
+              element={
+                <ProtectedRoute>
+                  <Matches />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/history" element={<History />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/support" element={<Support />} />
+            <Route path="/app-rating" element={<AppRating />} />
             <Route
               path="/edit-profile"
               element={
@@ -276,4 +341,3 @@ const App = () => (
 );
 
 export default App;
-

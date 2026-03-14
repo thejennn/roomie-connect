@@ -22,6 +22,10 @@ export interface IUser extends Document {
   isBanned: boolean;
   role: AppRole;
   aiTokens: IAiTokens;
+  knockCoin: number;
+  unlockedRoommateUserIds: mongoose.Types.ObjectId[];
+  /** Persistent counter of free AI chats used. Never decremented, even if chat history is cleared. */
+  aiFreeChatUsed: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,6 +73,9 @@ const userSchema = new Schema<IUser>(
       type: aiTokensSchema,
       default: () => ({ tokens: 0, maxTokens: Infinity }),
     },
+    knockCoin: { type: Number, default: 0 },
+    unlockedRoommateUserIds: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
+    aiFreeChatUsed: { type: Number, default: 0, min: 0 },
   },
   {
     timestamps: true,

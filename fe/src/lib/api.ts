@@ -234,6 +234,24 @@ class ApiClient {
     return this.request<{ profiles: ApiRoommateProfile[] }>('/roommates');
   }
 
+  async getRoommateUnlocks() {
+    return this.request<{ unlockedUserIds: string[]; knockCoin: number }>(
+      "/roommates/unlocks",
+    );
+  }
+
+  async unlockRoommate(targetUserId: string) {
+    return this.request<{
+      message: string;
+      knockCoin: number;
+      unlockedUserIds: string[];
+      cost: number;
+    }>("/roommates/unlock", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId }),
+    });
+  }
+
   async createRoommateProfile(profileData: RoommateProfileInput) {
     return this.request<{ profile: ApiRoommateProfile }>('/roommates', {
       method: 'POST',
@@ -243,9 +261,27 @@ class ApiClient {
 
   async updateRoommateProfile(id: string, profileData: Partial<RoommateProfileInput>) {
     return this.request<{ profile: ApiRoommateProfile }>(`/roommates/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(profileData),
     });
+  }
+
+  async getMyRoommateProfile() {
+    return this.request<{ profile: ApiRoommateProfile }>("/roommates/my");
+  }
+
+  async updateMyRoommateProfile(profileData: Partial<RoommateProfileInput>) {
+    return this.request<{ profile: ApiRoommateProfile }>("/roommates/my", {
+      method: "PUT",
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async payForQuizRetake() {
+    return this.request<{ message: string; knockCoin: number; cost: number }>(
+      "/roommates/pay-retake",
+      { method: "POST" },
+    );
   }
 
   // Admin endpoints
@@ -460,6 +496,17 @@ class ApiClient {
       `/landlord/viewings/${id}/refund`,
       { method: 'POST' },
     );
+  }
+  // Knock Coin endpoints
+  async getCoinPackages() {
+    return this.request<{ packages: any[] }>('/coin/packages');
+  }
+
+  async purchaseCoins(packageType: string) {
+    return this.request<{ transaction: any; checkoutUrl: string }>('/coin/purchase', {
+      method: 'POST',
+      body: JSON.stringify({ packageType }),
+    });
   }
 
   // Admin Viewing endpoints
