@@ -261,21 +261,22 @@ export default function Matches() {
     setCoinBalance(user?.knockCoin ?? 0);
   }, [user?.knockCoin]);
 
-  const fetchUnlocks = async () => {
-    if (!isAuthenticated) {
-      setUnlockedUserIds(new Set());
-      return;
-    }
-    try {
-      const { data } = await apiClient.getRoommateUnlocks();
-      if (data) {
-        setUnlockedUserIds(new Set(data.unlockedUserIds || []));
-        setCoinBalance(data.knockCoin ?? user?.knockCoin ?? 0);
-      }
-    } catch (error) {
-      console.error("Error fetching unlocks:", error);
-    }
-  };
+const fetchUnlocks = async () => {
+  if (!isAuthenticated) {
+    setUnlockedUserIds(new Set());
+    return;
+  }
+
+  try {
+    const { data, error } = await apiClient.getRoommateUnlocks();
+    if (error || !data) return;
+
+    setUnlockedUserIds(new Set(data.unlockedUserIds || []));
+    setCoinBalance(data.knockCoin ?? user?.knockCoin ?? 0);
+  } catch (err) {
+    console.error("Error fetching unlocks:", err);
+  }
+};
 
   const fetchUsers = async () => {
     try {
