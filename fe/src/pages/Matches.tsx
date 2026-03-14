@@ -524,7 +524,7 @@ const fetchUnlocks = async () => {
               }
             }}
           >
-            {unlockingId === 'retake' ? 'Đang xử lý...' : 'Làm lại bài test (50 Coin)'}
+            {unlockingId === 'retake' ? 'Đang xử lý...' : 'Làm lại bài test (50 KnockCoin)'}
           </Button>
         </div>
       </div>
