@@ -272,7 +272,11 @@ export default function Matches() {
   }, [isAuthenticated, location.state?.preferences]);
 
   useEffect(() => {
-    setCoinBalance(user?.knockCoin ?? 0);
+    // Only update balance from auth context if we don't have a value yet
+    // or if the balance in context is actually non-zero (initial login sync)
+    if (user?.knockCoin !== undefined && (coinBalance === 0 || user.knockCoin > 0)) {
+      setCoinBalance(user.knockCoin);
+    }
   }, [user?.knockCoin]);
 
   const fetchUnlocks = async () => {
@@ -286,7 +290,12 @@ export default function Matches() {
       if (error || !data) return;
 
       setUnlockedUserIds(new Set(data.unlockedUserIds || []));
-      setCoinBalance(data.knockCoin ?? user?.knockCoin ?? 0);
+      // Only set if we actually got a value back
+      if (data.knockCoin !== undefined) {
+        setCoinBalance(data.knockCoin);
+      } else if (user?.knockCoin !== undefined) {
+        setCoinBalance(user.knockCoin);
+      }
     } catch (err) {
       console.error("Error fetching unlocks:", err);
     }
