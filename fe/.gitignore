@@ -23,6 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files (keep secrets out of git)
+
 .env
+.env.*
 
