@@ -56,7 +56,7 @@ const districts = [
 
 const amenities = [
   { id: "elevator", label: "Thang máy" },
-  { id: "fire_safety", label: "PCCC (Phòng cháy chữa cháy)", highlight: true },
+  { id: "fire_safety", label: "PCCC (Phòng cháy chữa cháy)" },
   { id: "shared_washing", label: "Máy giặt chung" },
   { id: "private_washing", label: "Máy giặt riêng" },
   { id: "parking", label: "Chỗ để xe" },
@@ -181,18 +181,14 @@ export default function CreatePost() {
         electricity_price: formData.electricity_price
           ? Number(formData.electricity_price)
           : null,
-        water_price: formData.water_price
-          ? Number(formData.water_price)
-          : null,
+        water_price: formData.water_price ? Number(formData.water_price) : null,
         internet_price: formData.internet_price
           ? Number(formData.internet_price)
           : null,
         cleaning_fee: formData.cleaning_fee
           ? Number(formData.cleaning_fee)
           : null,
-        parking_fee: formData.parking_fee
-          ? Number(formData.parking_fee)
-          : null,
+        parking_fee: formData.parking_fee ? Number(formData.parking_fee) : null,
         has_elevator: formData.amenities.includes("elevator"),
         has_fire_safety: formData.amenities.includes("fire_safety"),
         has_shared_washing: formData.amenities.includes("shared_washing"),
@@ -212,11 +208,14 @@ export default function CreatePost() {
         images: formData.images,
       };
 
-      const { data: roomData, error: roomError } = await apiClient.createRoom(roomPayload);
+      const { data: roomData, error: roomError } =
+        await apiClient.createRoom(roomPayload);
 
       if (roomError) {
         if (roomError.includes("Active subscription required")) {
-          toast.error("Vui lòng đăng ký gói cước để tiếp tục đăng tin phòng trọ.");
+          toast.error(
+            "Vui lòng đăng ký gói cước để tiếp tục đăng tin phòng trọ.",
+          );
           navigate("/landlord/subscription");
           return;
         }
@@ -363,6 +362,7 @@ export default function CreatePost() {
                       <Label>Giá thuê (VNĐ/tháng) *</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="3000000"
                         value={formData.price}
                         onChange={(e) => handleChange("price", e.target.value)}
@@ -372,6 +372,7 @@ export default function CreatePost() {
                       <Label>Tiền cọc (VNĐ)</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="3000000"
                         value={formData.deposit}
                         onChange={(e) =>
@@ -385,6 +386,7 @@ export default function CreatePost() {
                       <Label>Diện tích (m²) *</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="20"
                         value={formData.area}
                         onChange={(e) => handleChange("area", e.target.value)}
@@ -420,6 +422,7 @@ export default function CreatePost() {
                       <Label>Giá điện (VNĐ/kWh)</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="3500"
                         value={formData.electricity_price}
                         onChange={(e) =>
@@ -431,6 +434,7 @@ export default function CreatePost() {
                       <Label>Giá nước (VNĐ/người/tháng)</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="100000"
                         value={formData.water_price}
                         onChange={(e) =>
@@ -444,6 +448,7 @@ export default function CreatePost() {
                       <Label>Internet (VNĐ/tháng)</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="0 = Miễn phí"
                         value={formData.internet_price}
                         onChange={(e) =>
@@ -455,6 +460,7 @@ export default function CreatePost() {
                       <Label>Phí vệ sinh (VNĐ/tháng)</Label>
                       <Input
                         type="number"
+                        min="0"
                         placeholder="0 = Miễn phí"
                         value={formData.cleaning_fee}
                         onChange={(e) =>
@@ -467,6 +473,7 @@ export default function CreatePost() {
                     <Label>Phí gửi xe (VNĐ/tháng)</Label>
                     <Input
                       type="number"
+                      min="0"
                       placeholder="0 = Miễn phí"
                       value={formData.parking_fee}
                       onChange={(e) =>
@@ -490,7 +497,7 @@ export default function CreatePost() {
                             formData.amenities.includes(item.id)
                               ? "border-primary bg-primary/5"
                               : "hover:bg-muted"
-                          } ${item.highlight ? "ring-2 ring-amber-400/50" : ""}`}
+                          }`}
                           onClick={() => toggleAmenity(item.id)}
                         >
                           <Checkbox
@@ -500,11 +507,6 @@ export default function CreatePost() {
                           <span className="text-sm font-medium">
                             {item.label}
                           </span>
-                          {item.highlight && (
-                            <span className="ml-auto px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
-                              Quan trọng
-                            </span>
-                          )}
                         </div>
                       ))}
                     </div>
