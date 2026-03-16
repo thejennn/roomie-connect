@@ -82,26 +82,27 @@ export default function CreatePost() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
-  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   useEffect(() => {
     if (user) {
-      fetchWalletBalance();
+      fetchSubscriptionStatus();
     }
   }, [user]);
 
-  const fetchWalletBalance = async () => {
+  const fetchSubscriptionStatus = async () => {
     try {
-      const { data, error } = await apiClient.getWallet();
-
-      if (!error && data?.wallet) {
-        setWalletBalance(data.wallet.balance);
+      const { data, error } = await apiClient.getCurrentSubscription();
+      if (!error && data?.subscription) {
+        setHasActiveSubscription(data.subscription.status === "active");
       }
     } catch (error) {
-      console.error("Error fetching wallet balance:", error);
+      console.error("Error fetching subscription status:", error);
     }
   };
+
+  const postFee = hasActiveSubscription ? 0 : POST_FEE;
 
   const [formData, setFormData] = useState({
     // Step 1
@@ -160,11 +161,6 @@ export default function CreatePost() {
   };
 
   const handleSubmit = async () => {
-    if (walletBalance < POST_FEE) {
-      toast.error("Số dư không đủ! Vui lòng nạp thêm tiền vào ví.");
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -564,37 +560,18 @@ export default function CreatePost() {
                     <div className="p-4 bg-muted rounded-xl">
                       <h3 className="font-semibold mb-3">Chi phí đăng tin</h3>
                       <div className="flex justify-between items-center">
-                        <span>Phí đăng tin (30 ngày)</span>
+                        <span>Phí đăng tin</span>
                         <span className="font-semibold text-primary">
-                          {formatCurrency(POST_FEE)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center mt-2 pt-2 border-t">
-                        <span>Số dư ví hiện tại</span>
-                        <span className="font-semibold">
-                          {formatCurrency(walletBalance)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center mt-2">
-                        <span>Sau khi đăng</span>
-                        <span
-                          className={`font-semibold ${walletBalance - POST_FEE < 0 ? "text-destructive" : "text-emerald-600"}`}
-                        >
-                          {formatCurrency(walletBalance - POST_FEE)}
+                          {hasActiveSubscription ? (
+                            <span className="text-emerald-600">
+                              Miễn phí (Đã đăng ký gói)
+                            </span>
+                          ) : (
+                            "Theo gói"
+                          )}
                         </span>
                       </div>
                     </div>
-
-                    {walletBalance < POST_FEE && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Số dư không đủ! Vui lòng nạp thêm{" "}
-                          {formatCurrency(POST_FEE - walletBalance)} để đăng
-                          tin.
-                        </AlertDescription>
-                      </Alert>
-                    )}
                   </div>
                 </>
               )}
@@ -624,10 +601,14 @@ export default function CreatePost() {
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={walletBalance < POST_FEE || loading}
+              disabled={loading}
               className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
             >
-              {loading ? "Đang xử lý..." : "Thanh toán & Đăng tin"}
+              {loading
+                ? "Đang xử lý..."
+                : hasActiveSubscription
+                  ? "Đăng tin"
+                  : "Thanh toán & Đăng tin"}
             </Button>
           )}
         </div>

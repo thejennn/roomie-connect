@@ -46,7 +46,6 @@ import AdminSettings from "./pages/admin/Settings";
 import AdminViewings from "./pages/admin/Viewings";
 import LandlordDashboard from "./pages/landlord/Dashboard";
 import LandlordPosts from "./pages/landlord/Posts";
-import LandlordWallet from "./pages/landlord/Wallet";
 import LandlordProfile from "./pages/landlord/Profile";
 import CreatePost from "./pages/landlord/CreatePost";
 import LandlordSubscription from "./pages/landlord/Subscription";
@@ -157,14 +156,6 @@ const App = () => (
               element={
                 <ProtectedRoute role="landlord">
                   <LandlordPosts />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/landlord/wallet"
-              element={
-                <ProtectedRoute role="landlord">
-                  <LandlordWallet />
                 </ProtectedRoute>
               }
             />
