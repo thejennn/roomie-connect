@@ -199,6 +199,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/landlord/edit-post/:id"
+              element={
+                <ProtectedRoute role="landlord">
+                  <CreatePost />
+                </ProtectedRoute>
+              }
+            />
             {/* keep legacy /landlord -> redirect to dashboard */}
             <Route
               path="/landlord"
