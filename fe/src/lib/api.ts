@@ -23,6 +23,8 @@ import type {
   RoomInput,
   RoommateProfileInput,
   UserProfileInput,
+  ApiServiceBooking,
+  CreateServiceBookingInput,
 } from '@/types/api';
 
 export type { ApiResponse } from '@/types/api';
@@ -532,29 +534,29 @@ class ApiClient {
   }
 
   // Service Bookings endpoints
-  async createServiceBooking(data: any) {
-    return this.request<{ message: string; booking: any }>('/services/bookings', {
+  async createServiceBooking(data: CreateServiceBookingInput) {
+    return this.request<{ message: string; booking: ApiServiceBooking }>('/services/bookings', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async getMyServiceBookings() {
-    return this.request<any[]>('/services/my-bookings');
+    return this.request<ApiServiceBooking[]>('/services/my-bookings');
   }
 
   async cancelServiceBooking(id: string) {
-    return this.request<{ message: string }>(`/services/bookings/${id}/cancel`, {
+    return this.request<{ message: string; booking: ApiServiceBooking }>(`/services/bookings/${id}/cancel`, {
       method: 'PATCH',
     });
   }
 
   async getAdminServiceBookings() {
-    return this.request<any[]>('/services/admin/bookings');
+    return this.request<ApiServiceBooking[]>('/services/admin/bookings');
   }
 
   async updateServiceBookingStatus(id: string, status: string, adminNote?: string) {
-    return this.request<{ message: string; booking: any }>(`/services/admin/bookings/${id}/status`, {
+    return this.request<{ message: string; booking: ApiServiceBooking }>(`/services/admin/bookings/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status, adminNote }),
     });

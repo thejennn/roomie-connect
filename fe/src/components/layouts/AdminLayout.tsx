@@ -25,7 +25,7 @@ const navItems = [
   { label: 'Quản lý phòng', href: '/admin/rooms', icon: Home },
   { label: 'Quản lý người dùng', href: '/admin/users', icon: Users },
   { label: 'Giao dịch', href: '/admin/transactions', icon: CreditCard },
-  { label: 'Dịch vụ', href: '/admin/services', icon: Truck },
+  { label: 'Quản lý dọn phòng & vận chuyển', href: '/admin/services', icon: Truck },
   { label: 'Cài đặt', href: '/admin/settings', icon: Settings },
 ];
 

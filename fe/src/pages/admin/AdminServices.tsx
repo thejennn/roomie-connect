@@ -6,9 +6,10 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import type { ApiServiceBooking } from '@/types/api';
 
 export default function AdminServices() {
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<ApiServiceBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export default function AdminServices() {
             <option value="in_progress">Đang thực hiện</option>
             <option value="completed">Hoàn thành</option>
             <option value="cancelled">Đã huỷ</option>
-            <option value="rejected">Bị từ chối</option>
+            <option value="rejected">Từ chối</option>
           </select>
         </div>
       </div>
@@ -132,12 +133,27 @@ export default function AdminServices() {
                           <p>Nơi đi: {booking.movingDetails.pickupAddress}</p>
                           <p>Nơi đến: {booking.movingDetails.dropoffAddress}</p>
                           <p>Loại xe: {booking.movingDetails.vehicleType === 'motorbike' ? 'Xe máy' : booking.movingDetails.vehicleType === 'three_wheeler' ? 'Xe ba gác' : 'Xe tải nhỏ'}</p>
+                          {booking.movingDetails.floorNumber != null && (
+                            <p>Tầng số: {booking.movingDetails.floorNumber}</p>
+                          )}
+                          {booking.movingDetails.hasElevator != null && (
+                            <p>Thang máy: {booking.movingDetails.hasElevator ? 'Có' : 'Không'}</p>
+                          )}
+                          {booking.movingDetails.itemDescription && (
+                            <p>Đồ đạc: {booking.movingDetails.itemDescription}</p>
+                          )}
                         </>
                       )}
                       {booking.serviceType === 'cleaning' && booking.cleaningDetails && (
                         <>
                           <p>Địa chỉ: {booking.cleaningDetails.address}</p>
                           <p>Gói: {booking.cleaningDetails.roomSizePackage === 'small' ? 'Gói nhỏ (< 20m²)' : booking.cleaningDetails.roomSizePackage === 'medium' ? 'Gói vừa (20-35m²)' : 'Gói lớn (> 35m²)'}</p>
+                          {booking.cleaningDetails.estimatedArea != null && (
+                            <p>Diện tích ước tính: {booking.cleaningDetails.estimatedArea}m²</p>
+                          )}
+                          {booking.cleaningDetails.cleaningType && (
+                            <p>Loại dọn: {booking.cleaningDetails.cleaningType === 'basic' ? 'Cơ bản' : 'Tổng vệ sinh'}</p>
+                          )}
                         </>
                       )}
                       {booking.note && <p>Ghi chú KH: {booking.note}</p>}
@@ -167,7 +183,7 @@ export default function AdminServices() {
                         <option value="in_progress">Đang thực hiện</option>
                         <option value="completed">Hoàn thành</option>
                         <option value="cancelled">Đã huỷ</option>
-                        <option value="rejected">Bị từ chối</option>
+                        <option value="rejected">Từ chối</option>
                       </select>
                     </div>
                     <div>

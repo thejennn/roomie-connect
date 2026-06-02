@@ -16,13 +16,54 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
       cleaningDetails,
     } = req.body;
 
+    // --- Validation ---
+    if (!serviceType || !["moving", "cleaning"].includes(serviceType)) {
+      return res.status(400).json({ message: "serviceType phải là 'moving' hoặc 'cleaning'" });
+    }
+    if (!serviceDate || isNaN(Date.parse(serviceDate))) {
+      return res.status(400).json({ message: "serviceDate không hợp lệ" });
+    }
+    if (!contactName || typeof contactName !== "string" || contactName.trim() === "") {
+      return res.status(400).json({ message: "contactName là bắt buộc" });
+    }
+    if (!contactPhone || typeof contactPhone !== "string" || contactPhone.trim() === "") {
+      return res.status(400).json({ message: "contactPhone là bắt buộc" });
+    }
+    if (estimatedPrice !== undefined && (typeof estimatedPrice !== "number" || estimatedPrice < 0)) {
+      return res.status(400).json({ message: "estimatedPrice không được âm" });
+    }
+    if (serviceType === "moving") {
+      if (!movingDetails) {
+        return res.status(400).json({ message: "movingDetails là bắt buộc cho dịch vụ vận chuyển" });
+      }
+      if (!movingDetails.pickupAddress || !movingDetails.dropoffAddress || !movingDetails.vehicleType) {
+        return res.status(400).json({ message: "movingDetails phải có pickupAddress, dropoffAddress và vehicleType" });
+      }
+      const validVehicles = ["motorbike", "three_wheeler", "small_truck"];
+      if (!validVehicles.includes(movingDetails.vehicleType)) {
+        return res.status(400).json({ message: "vehicleType không hợp lệ" });
+      }
+    }
+    if (serviceType === "cleaning") {
+      if (!cleaningDetails) {
+        return res.status(400).json({ message: "cleaningDetails là bắt buộc cho dịch vụ dọn dẹp" });
+      }
+      if (!cleaningDetails.address || !cleaningDetails.roomSizePackage) {
+        return res.status(400).json({ message: "cleaningDetails phải có address và roomSizePackage" });
+      }
+      const validPackages = ["small", "medium", "large"];
+      if (!validPackages.includes(cleaningDetails.roomSizePackage)) {
+        return res.status(400).json({ message: "roomSizePackage không hợp lệ" });
+      }
+    }
+
     const newBooking = new ServiceBooking({
       tenant: req.userId,
       serviceType,
       serviceDate,
       contactName,
       contactPhone,
-      estimatedPrice,
+      estimatedPrice: estimatedPrice ?? 0,
       note,
       paymentMethod,
       movingDetails,

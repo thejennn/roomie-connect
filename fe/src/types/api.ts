@@ -496,3 +496,62 @@ export interface UserProfileInput {
   bankName?: string;
   bankAccount?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Service Booking
+// ---------------------------------------------------------------------------
+export type ServiceType = 'moving' | 'cleaning';
+export type ServiceBookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
+
+export interface IMovingDetails {
+  pickupAddress: string;
+  dropoffAddress: string;
+  vehicleType: 'motorbike' | 'three_wheeler' | 'small_truck';
+  floorNumber?: number;
+  hasElevator?: boolean;
+  itemDescription?: string;
+}
+
+export interface ICleaningDetails {
+  address: string;
+  roomSizePackage: 'small' | 'medium' | 'large';
+  estimatedArea?: number;
+  cleaningType?: 'basic' | 'deep_cleaning';
+}
+
+export interface ApiServiceBooking {
+  _id: string;
+  tenant: string | ApiUser;
+  serviceType: ServiceType;
+  serviceDate: string;
+  contactName: string;
+  contactPhone: string;
+  estimatedPrice: number;
+  status: ServiceBookingStatus;
+  note?: string;
+  adminNote?: string;
+  paymentMethod?: 'cash' | 'bank_transfer' | 'wallet';
+  paymentStatus?: 'unpaid' | 'paid' | 'refunded';
+  movingDetails?: IMovingDetails;
+  cleaningDetails?: ICleaningDetails;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateServiceBookingInput {
+  serviceType: ServiceType;
+  serviceDate: string;
+  contactName: string;
+  contactPhone: string;
+  estimatedPrice: number;
+  note?: string;
+  paymentMethod?: 'cash' | 'bank_transfer' | 'wallet';
+  movingDetails?: Omit<IMovingDetails, never>;
+  cleaningDetails?: Omit<ICleaningDetails, never>;
+}
