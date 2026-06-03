@@ -104,6 +104,7 @@ export interface ApiRoom {
   status: RoomStatus;
   rejectionReason?: string;
   expiresAt?: string;
+  viewCount?: number;
   createdAt: string;
   updatedAt: string;
 }

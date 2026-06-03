@@ -1,11 +1,11 @@
 import { ReactNode, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Home, 
-  Users, 
-  CreditCard, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Home,
+  Users,
+  CreditCard,
+  Settings,
   LogOut,
   Menu,
   Shield,
@@ -36,8 +36,8 @@ function NavLink({ item, isActive }: { item: typeof navItems[0]; isActive: boole
       to={item.href}
       className={cn(
         'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
-        isActive 
-          ? 'bg-primary text-primary-foreground shadow-card' 
+        isActive
+          ? 'bg-primary text-primary-foreground shadow-card'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       )}
     >
@@ -90,17 +90,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 space-y-1 mt-4">
             {navItems.map((item) => (
-              <NavLink 
-                key={item.href} 
-                item={item} 
+              <NavLink
+                key={item.href}
+                item={item}
                 isActive={location.pathname === item.href}
               />
             ))}
           </nav>
 
           {/* Sign Out */}
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className="justify-start gap-3 text-muted-foreground hover:text-destructive"
             onClick={handleSignOut}
           >
@@ -133,16 +133,16 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
                 <nav className="flex-1 space-y-1">
                   {navItems.map((item) => (
-                    <NavLink 
-                      key={item.href} 
-                      item={item} 
+                    <NavLink
+                      key={item.href}
+                      item={item}
                       isActive={location.pathname === item.href}
                     />
                   ))}
                 </nav>
 
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="justify-start gap-3 text-muted-foreground hover:text-destructive"
                   onClick={handleSignOut}
                 >

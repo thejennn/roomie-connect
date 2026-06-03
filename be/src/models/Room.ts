@@ -48,6 +48,7 @@ export interface IRoom extends Document {
   expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  viewCount: number;
 }
 
 const utilitiesSchema = new Schema<IUtilities>(
@@ -101,6 +102,7 @@ const roomSchema = new Schema<IRoom>(
     },
     rejectionReason: { type: String },
     expiresAt: { type: Date },
+    viewCount: { type: Number, default: 0 },
   },
   {
     timestamps: true,

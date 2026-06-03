@@ -101,7 +101,11 @@ router.get("/", async (req: Request, res: Response) => {
 // GET /api/rooms/:id - Get single room (public)
 router.get("/:id", async (req: Request, res: Response) => {
   try {
-    const room = await Room.findById(req.params.id).populate(
+    const room = await Room.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { viewCount: 1 } },
+      { new: true }
+    ).populate(
       "landlordId",
       "fullName avatarUrl phone isVerified",
     );

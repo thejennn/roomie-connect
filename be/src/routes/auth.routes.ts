@@ -127,9 +127,9 @@ router.post("/register", async (req: Request, res: Response) => {
 // POST /api/auth/login
 router.post("/login", async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, expectedRole } = req.body;
 
-    console.log(`\n🔓 LOGIN REQUEST: ${email}`);
+    console.log(`\n🔓 LOGIN REQUEST: ${email} (expectedRole: ${expectedRole ?? "none"})`);
 
     if (!email || !password) {
       res.status(400).json({ error: "Email and password are required" });
@@ -145,7 +145,7 @@ router.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
-    console.log(`✅ User found: ${user.email} (ID: ${user._id})`);
+    console.log(`✅ User found: ${user.email} (ID: ${user._id}, role: ${user.role})`);
 
     // Check if banned
     if (user.isBanned) {
@@ -163,9 +163,30 @@ router.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
-    console.log(`✅ Password verified for: ${email}\n`);
+    console.log(`✅ Password verified for: ${email}`);
 
-    // Generate token
+    // ── Role-portal enforcement ────────────────────────────────────────────
+    // If the client specifies which portal they are logging in from,
+    // make sure the account role matches exactly. This prevents an admin
+    // or landlord account from logging in through the tenant portal (and
+    // vice-versa). We only apply this check when expectedRole is provided
+    // so that existing non-portal callers (e.g. internal tools) are unaffected.
+    const validRoles = ["admin", "landlord", "tenant"] as const;
+    if (expectedRole && validRoles.includes(expectedRole)) {
+      if (user.role !== expectedRole) {
+        console.log(
+          `🚫 Role mismatch for ${email}: account is "${user.role}", portal requires "${expectedRole}"`,
+        );
+        res.status(403).json({
+          error: "Tài khoản này không có quyền đăng nhập tại cổng này.",
+        });
+        return;
+      }
+    }
+
+    console.log(`✅ Role check passed for: ${email}\n`);
+
+    // Generate token — only reached when role is valid
     const token = jwt.sign(
       { userId: user._id, role: user.role },
       process.env.JWT_SECRET || "default-secret",

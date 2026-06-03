@@ -16,6 +16,7 @@ export interface LandlordRoom {
   expires_at: string | null;
   images: string[] | null;
   rejection_reason: string | null;
+  viewCount: number;
 }
 
 /**
@@ -35,5 +36,6 @@ export function mapApiRoomToRoom(apiRoom: ApiRoom): LandlordRoom {
     expires_at: apiRoom.expiresAt ?? null,
     images: apiRoom.images || null,
     rejection_reason: apiRoom.rejectionReason ?? null,
+    viewCount: apiRoom.viewCount ?? 0,
   };
 }

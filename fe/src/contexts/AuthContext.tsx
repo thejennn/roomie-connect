@@ -32,7 +32,7 @@ interface AuthContextType {
   walletBalance: number; // for landlords (mock)
   isAuthenticated: boolean; // New convenience flag
   signUp: (email: string, password: string, role?: UserRole, metadata?: Record<string, unknown>) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string, expectedRole?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ error: Error | null }>;
   deductWallet: (amount: number) => boolean;
@@ -98,15 +98,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, expectedRole?: string) => {
     // Clear any existing token before logging in with new credentials
     apiClient.setToken(null);
 
-    // Call backend API to login
+    // Call backend API to login (expectedRole enforces portal-based access control)
     try {
-      const { data, error } = await apiClient.login(email, password);
+      const { data, error } = await apiClient.login(email, password, expectedRole);
 
       if (error) {
+        // Never store a token when login fails (backend already rejected the request)
         return { error: new Error(error) };
       }
 

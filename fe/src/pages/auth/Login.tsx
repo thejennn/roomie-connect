@@ -80,16 +80,22 @@ export default function Login() {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(email, password);
-    // Wait a moment for mock seeding to finish
+    // Pass the portal role so the backend can enforce role-based access control
+    const { error } = await signIn(email, password, role);
+    // Wait a moment for state update to settle
     await new Promise((r) => setTimeout(r, 100));
     setIsLoading(false);
 
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
+      const msg = error.message;
+      if (msg.includes('Tài khoản này không có quyền đăng nhập tại cổng này')) {
+        toast.error('Tài khoản này không có quyền đăng nhập tại cổng này.');
+      } else if (msg.includes('Invalid login credentials') || msg.includes('Invalid credentials')) {
         toast.error('Email hoặc mật khẩu không đúng');
+      } else if (msg.includes('Account is banned')) {
+        toast.error('Tài khoản của bạn đã bị khóa.');
       } else {
-        toast.error('Đăng nhập thất bại: ' + error.message);
+        toast.error('Đăng nhập thất bại: ' + msg);
       }
     } else {
       toast.success('Đăng nhập thành công!');

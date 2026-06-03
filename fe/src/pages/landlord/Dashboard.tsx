@@ -56,7 +56,7 @@ export default function LandlordDashboard() {
           totalPosts: rooms.length,
           activePosts: rooms.filter((r) => r.status === "active").length,
           pendingPosts: rooms.filter((r) => r.status === "pending").length,
-          totalViews: Math.floor(Math.random() * 10000) + 5000, // Mock for now
+          totalViews: rooms.reduce((acc, r) => acc + (r.viewCount || 0), 0),
         });
       }
     } catch (error) {

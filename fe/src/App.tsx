@@ -81,7 +81,9 @@ function ProtectedRoute({
       <Navigate to={`/auth/login?returnTo=${location.pathname}`} replace />
     );
   }
-  if (role && auth.role !== role && auth.role !== "admin") {
+  // Strict role check: each role can only access its own routes.
+  // Admin does NOT get a free pass into landlord/tenant pages.
+  if (role && auth.role !== role) {
     return <div className="container py-8">Không có quyền truy cập</div>;
   }
   return children;
