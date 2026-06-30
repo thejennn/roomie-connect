@@ -259,6 +259,7 @@ export function buildComparisonPrompt(
     "",
     "QUY TẮC BẮT BUỘC:",
     "- CHỈ sử dụng thông tin trong dữ liệu trên. KHÔNG bịa ra bất kỳ thông tin nào.",
+    "- Chỉ so sánh các phòng/trọ có trong danh sách trên. Không tự thêm phòng/trọ khác ngoài danh sách.",
     "- Nếu một tiêu chí không có dữ liệu, ghi rõ 'chưa có thông tin' — không đoán.",
     "- So sánh trực tiếp và cụ thể: nêu con số thực tế (giá, diện tích, ...).",
     "- Nêu ưu và nhược điểm thực tế của từng phòng.",
